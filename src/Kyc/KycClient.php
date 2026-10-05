@@ -51,16 +51,50 @@ final class KycClient
     }
 
     /**
-     * @param array{externalCustomerId?:string, status?:string, sessionType?:string, pageSize?:int, pageToken?:string} $filters
+     * Oturum listesi — cursor sayfalaması.
+     *
+     * 🔴 DÜZELTİLEN DEFEKT: bu metot `externalCustomerId`/`status`/`sessionType`/
+     * `pageSize`/`pageToken` gönderiyordu. `GET /api/v1/kyc/sessions` bunların
+     * HİÇBİRİNİ kabul etmiyor (yalnız `limit` + `cursor`) ve gateway
+     * `forbidNonWhitelisted` ile koştuğu için bilinmeyen alan **400** üretiyordu.
+     * Yani filtreli her çağrı hata alıyordu.
+     *
+     * `pageSize`/`pageToken` GERİYE UYUMLU olarak kabul edilmeye devam eder ve
+     * tel üzerinde `limit`/`cursor`'a çevrilir — bu adları kullanan mevcut
+     * entegratör kırılmaz.
+     *
+     * ⚠️ Desteklenmeyen filtre SESSİZCE DÜŞÜRÜLMEZ, istisna fırlatılır: bir
+     * `status` filtresini yok saymak çağırana TÜM oturumları "filtrelenmiş"
+     * diye döndürürdü — 400'den daha tehlikelidir. (Merchant yüzeyinde bu
+     * filtreler backend'de de yok; yalnız admin yolunda var.)
+     *
+     * @param array{limit?:int, cursor?:string, pageSize?:int, pageToken?:string} $filters
+     *
+     * @throws \InvalidArgumentException Desteklenmeyen bir filtre verildiğinde.
      */
     public function listSessions(array $filters = []): KycSessionList
     {
-        $query = [];
-        foreach (['externalCustomerId', 'status', 'sessionType', 'pageSize', 'pageToken'] as $key) {
-            if (isset($filters[$key]) && $filters[$key] !== '') {
-                $query[$key] = $filters[$key];
-            }
+        $unsupported = array_diff(
+            array_keys($filters),
+            ['limit', 'cursor', 'pageSize', 'pageToken']
+        );
+        if ($unsupported !== []) {
+            throw new \InvalidArgumentException(sprintf(
+                'GET /api/v1/kyc/sessions su filtreleri desteklemiyor: %s. Desteklenen: limit, cursor.',
+                implode(', ', $unsupported)
+            ));
         }
+
+        $query = [];
+        $limit = $filters['limit'] ?? $filters['pageSize'] ?? null;
+        if ($limit !== null && $limit !== '') {
+            $query['limit'] = (int) $limit;
+        }
+        $cursor = $filters['cursor'] ?? $filters['pageToken'] ?? null;
+        if (is_string($cursor) && $cursor !== '') {
+            $query['cursor'] = $cursor;
+        }
+
         $response = $this->api->request('GET', self::BASE . '/sessions', null, ['query' => $query]);
 
         return new KycSessionList($response);

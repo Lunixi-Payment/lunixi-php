@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lunixi\Sdk\Sanction;
 
+use Lunixi\Sdk\Http\Envelope;
+
 use Lunixi\Sdk\ApiClient;
 
 /**
@@ -349,7 +351,8 @@ final class SanctionClient
      */
     private function itemsOf(array $response): array
     {
-        $rows = $response['items'] ?? ($response['data'] ?? []);
-        return is_array($rows) ? array_values($rows) : [];
+        // Zarf okuma tek kaynakta ({@see Envelope}): gateway yükü `data`
+        // altına sarıyor; koleksiyon anahtarı uca göre değişebiliyor.
+        return Envelope::items($response);
     }
 }

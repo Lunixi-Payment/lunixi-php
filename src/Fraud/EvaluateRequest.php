@@ -34,12 +34,6 @@ final class EvaluateRequest
         return $this;
     }
 
-    public function withIntegrationMode(string $mode): self
-    {
-        $this->body['integrationMode'] = $mode;
-        return $this;
-    }
-
     public function withPaymentRail(string $rail): self
     {
         $this->body['paymentRail'] = $rail;

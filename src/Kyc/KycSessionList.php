@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lunixi\Sdk\Kyc;
 
+use Lunixi\Sdk\Http\Envelope;
+
 /**
  * A cursor-paginated list of KYC sessions (GET /api/v1/kyc/sessions).
  */
@@ -13,16 +15,25 @@ final class KycSessionList
     private array $items;
     private ?string $nextPageToken;
 
-    /** @param array<string,mixed> $response The full list envelope. */
+    /**
+     * @param array<string,mixed> $response The full list envelope.
+     *
+     * 🔴 DÜZELTİLEN DEFEKT: eskiden `$response['data']` bir SESSION DİZİSİ
+     * sanılıyordu. Gerçekte gateway `{status,code,data:{items,nextCursor}}`
+     * döndürüyor — yani `data` bir NESNE. `array_values()` onu
+     * `[items_dizisi, nextCursor_metni]`'ne çeviriyor ve iki çöp `KycSession`
+     * üretiyordu; `nextPageToken` de üst seviyede aranıp DAİMA `null` kalıyor,
+     * `hasMore()` her zaman `false` dönüyordu. Yani sayfalama HİÇ çalışmıyordu.
+     *
+     * Zarf okuma artık tek yerden: {@see Envelope}.
+     */
     public function __construct(array $response)
     {
-        $data = isset($response['data']) && is_array($response['data']) ? $response['data'] : [];
         $this->items = array_map(
-            static fn ($row): KycSession => new KycSession(is_array($row) ? $row : []),
-            array_values($data)
+            static fn (array $row): KycSession => new KycSession($row),
+            Envelope::items($response)
         );
-        $token = $response['nextPageToken'] ?? null;
-        $this->nextPageToken = (is_string($token) && $token !== '') ? $token : null;
+        $this->nextPageToken = Envelope::nextCursor($response);
     }
 
     /** @return KycSession[] */

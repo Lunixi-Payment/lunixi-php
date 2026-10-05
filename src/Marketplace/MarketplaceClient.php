@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lunixi\Sdk\Marketplace;
 
+use Lunixi\Sdk\Http\Envelope;
+
 use Lunixi\Sdk\ApiClient;
 use Lunixi\Sdk\Exception\ApiException;
 use Lunixi\Sdk\Payment\CheckoutIntent;
@@ -178,8 +180,17 @@ final class MarketplaceClient
         $query = self::query($filters, ['status', 'search', 'limit', 'offset']);
         $response = $this->api->request('GET', self::BASE . '/dealers', null, ['query' => $query]);
 
-        $rows = isset($response['data']) && is_array($response['data']) ? $response['data'] : [];
-        return array_map(static fn ($row): Dealer => new Dealer(is_array($row) ? $row : []), array_values($rows));
+        // 🔴 DÜZELTİLEN DEFEKT: burada `$response['data']` bir BAYİ DİZİSİ
+        // sanılıyordu. Gateway `{items,total}` yükünü döndürüyor (marketplace
+        // `call()` ham payload'ı geçiyor) → `data` altında dizi YOK, dolayısıyla
+        // bu metot DAİMA BOŞ dizi dönüyordu. WordPress eklentisinin bayi
+        // ekranı (`Marketplace/Admin.php`) bu yüzden boştu.
+        // Sınıfın kendi `items()` yardımcısı zaten doğru şekli biliyordu ama bu
+        // metot onu kullanmıyordu; artık ortak `Envelope` okuyucusuna bağlı.
+        return array_map(
+            static fn (array $row): Dealer => new Dealer($row),
+            Envelope::items($response)
+        );
     }
 
     public function getDealer(string $dealerId): Dealer
@@ -356,8 +367,9 @@ final class MarketplaceClient
      */
     private static function items(array $response): array
     {
-        $rows = $response['items'] ?? ($response['data'] ?? []);
-        return is_array($rows) ? array_values($rows) : [];
+        // Zarf okuma tek kaynakta: gateway yükü `data` altına sarıyor ve
+        // koleksiyon anahtarı uca göre `items`/`operations`/`rows` olabiliyor.
+        return Envelope::items($response);
     }
 
     /**
@@ -366,6 +378,6 @@ final class MarketplaceClient
      */
     private static function dataOf(array $response): array
     {
-        return isset($response['data']) && is_array($response['data']) ? $response['data'] : $response;
+        return Envelope::data($response);
     }
 }

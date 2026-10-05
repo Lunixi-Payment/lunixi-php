@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Lunixi\Sdk\Identity;
 
+use Lunixi\Sdk\Http\Envelope;
+
 use Lunixi\Sdk\ApiClient;
 
 /**
@@ -117,8 +119,9 @@ final class IdentityClient
         }
         $response = $this->api->request('GET', self::BASE . '/live-sessions', null, ['query' => $query]);
 
-        $rows = $response['data'] ?? ($response['items'] ?? []);
-        return is_array($rows) ? array_values($rows) : [];
+        // Zarf okuma tek kaynakta ({@see Envelope}): gateway yükü `data`
+        // altına sarıyor; koleksiyon anahtarı uca göre değişebiliyor.
+        return Envelope::items($response);
     }
 
     /**
