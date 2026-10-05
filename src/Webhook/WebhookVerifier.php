@@ -7,18 +7,23 @@ namespace Lunixi\Sdk\Webhook;
 use Lunixi\Sdk\Exception\WebhookVerificationException;
 
 /**
- * Verifies inbound Lunixi webhooks, byte-for-byte matching the gateway's
- * WebhookSignatureService:
+ * Verifies inbound Lunixi webhooks.
  *
- *   payloadHash = sha256_hex( stableStringify(body) )
- *   signature   = hex( HMAC_SHA256(secret, "<eventId>.<timestamp>.<payloadHash>") )
- *   header      = "x-lunixi-signature: sha256=<signature>"
+ * The `x-lunixi-signature` header is a comma-separated list of `scheme=value`
+ * items. The only signature scheme is v2; the list form exists solely for the
+ * 24h secret-rotation grace window, during which the gateway sends two items
+ * (`v2=<newSecretHmac>,v2=<oldSecretHmac>`).
  *
- * where stableStringify === JSON.stringify(sortObject(value)): object keys sorted
- * recursively, array order preserved. The delivered body IS the signed payload
- * (no envelope); eventId/type/timestamp travel in headers. Because the gateway
- * signs the SORTED re-serialization (not the raw bytes), we must parse the body
- * and re-serialize it the same way — HMAC'ing the raw body would not match.
+ *   v2 = hex( HMAC_SHA256(secret, "<eventId>.<timestamp>.<rawBody>") )
+ *
+ * where rawBody is the EXACT raw request body bytes (UTF-8) — never parsed or
+ * re-serialized for signing — and timestamp is the exact string of the
+ * `x-lunixi-signature-timestamp` header (ISO 8601).
+ *
+ * Verification: split the header on ',', trim, take the `v2=` items and
+ * compare each against the computed HMAC with hash_equals — valid if ANY
+ * matches. A header without a v2 item ALWAYS fails (unknown schemes are
+ * ignored).
  *
  * FAIL-CLOSED: any discrepancy throws; never act on an unverified payload.
  */
@@ -65,10 +70,25 @@ final class WebhookVerifier
             self::assertFreshTimestamp($timestamp, $tolerance);
         }
 
-        $payloadHash = self::payloadHash($rawBody);
-        $expected = 'sha256=' . hash_hmac('sha256', $eventId . '.' . $timestamp . '.' . $payloadHash, $secret);
+        $v2Items = [];
+        foreach (self::parseSignatureHeader($signatureHeader) as $item) {
+            if ($item['scheme'] === 'v2') {
+                $v2Items[] = $item;
+            }
+        }
+        if ($v2Items === []) {
+            throw new WebhookVerificationException('Webhook signature has no v2 item.');
+        }
 
-        if (!hash_equals($expected, $signatureHeader)) {
+        // HMAC over the EXACT raw body bytes — no parse, no re-serialization.
+        $expected = hash_hmac('sha256', $eventId . '.' . $timestamp . '.' . $rawBody, $secret);
+        $anyMatch = false;
+        foreach ($v2Items as $item) {
+            if (hash_equals($expected, $item['value'])) {
+                $anyMatch = true;
+            }
+        }
+        if (!$anyMatch) {
             throw new WebhookVerificationException('Webhook signature mismatch.');
         }
 
@@ -77,7 +97,7 @@ final class WebhookVerifier
 
         // The Lunixi delivery envelope carries the AUTHENTICATED event type + id in
         // the SIGNED body; the x-lunixi-event-type header is NOT part of the
-        // signature. Prefer the body, fall back to the header (flat/legacy bodies).
+        // signature. Prefer the body, fall back to the header (flat bodies).
         $type = (isset($envelope['type']) && is_string($envelope['type']) && $envelope['type'] !== '')
             ? $envelope['type']
             : $eventType;
@@ -90,55 +110,31 @@ final class WebhookVerifier
     }
 
     /**
-     * The stable canonical form of a JSON body — JSON.stringify(sortObject(value)),
-     * matching the gateway exactly. Public for testing against known gateway output.
-     */
-    public static function stableStringify(string $rawBody): string
-    {
-        $decoded = json_decode($rawBody); // objects → stdClass, arrays → list (disambiguates {} vs [])
-        if ($decoded === null && trim($rawBody) !== 'null') {
-            throw new WebhookVerificationException('Webhook body is not valid JSON.');
-        }
-
-        $encoded = json_encode(
-            self::sortValue($decoded),
-            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
-        );
-        if ($encoded === false) {
-            throw new WebhookVerificationException('Could not re-serialize webhook body.');
-        }
-
-        return $encoded;
-    }
-
-    /** sha256 hex of the stable-stringified body (gateway hashPayload equivalent). */
-    public static function payloadHash(string $rawBody): string
-    {
-        return hash('sha256', self::stableStringify($rawBody));
-    }
-
-    /**
-     * Recursively sorts object keys (lexicographic, like JS Array.sort on Object.keys),
-     * preserving array order — mirrors the gateway's sortObject.
+     * Splits "v2=abc,v2=def" into [['scheme'=>'v2','value'=>'abc'], …].
+     * Unknown schemes are carried through (and ignored by the caller) so new
+     * schemes can be introduced without breaking old verifiers.
      *
-     * @param mixed $value
-     * @return mixed
+     * @return array<int,array{scheme:string,value:string}>
      */
-    private static function sortValue($value)
+    private static function parseSignatureHeader(string $header): array
     {
-        if (is_array($value)) { // JSON array → preserve order
-            return array_map([self::class, 'sortValue'], $value);
-        }
-        if ($value instanceof \stdClass) { // JSON object → sort keys
-            $vars = get_object_vars($value);
-            ksort($vars, SORT_STRING);
-            $sorted = new \stdClass();
-            foreach ($vars as $key => $val) {
-                $sorted->{$key} = self::sortValue($val);
+        $items = [];
+        foreach (explode(',', $header) as $part) {
+            $part = trim($part);
+            if ($part === '') {
+                continue;
             }
-            return $sorted;
+            $eq = strpos($part, '=');
+            if ($eq === false || $eq === 0) {
+                $items[] = ['scheme' => '', 'value' => $part];
+                continue;
+            }
+            $items[] = [
+                'scheme' => trim(substr($part, 0, $eq)),
+                'value' => trim(substr($part, $eq + 1)),
+            ];
         }
-        return $value;
+        return $items;
     }
 
     /** @param array<string,string> $headers @return array<string,string> lower-cased keys */

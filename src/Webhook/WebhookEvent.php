@@ -38,7 +38,7 @@ final class WebhookEvent
         return $this->id;
     }
 
-    /** Event type, e.g. "payment.succeeded" (from `x-lunixi-event-type`). */
+    /** Event type, e.g. "payment.captured" (from `x-lunixi-event-type`). */
     public function type(): string
     {
         return $this->type;
