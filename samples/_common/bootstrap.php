@@ -14,7 +14,7 @@ sample_load_env(__DIR__ . '/../.env');
 function sample_client(): LunixiClient
 {
     return LunixiClient::create([
-        'baseUrl' => sample_env('LUNIXI_BASE_URL', 'https://api.lunixi.io'),
+        'baseUrl' => sample_env('LUNIXI_BASE_URL', 'https://api-gateway.lunixi.com'),
         'environment' => sample_env('LUNIXI_ENVIRONMENT', 'TEST'),
         'keyId' => sample_required_env('LUNIXI_KEY_ID'),
         'privateKey' => sample_private_key(),

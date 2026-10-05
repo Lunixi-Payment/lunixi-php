@@ -8,7 +8,7 @@ require_once __DIR__ . '/../_common/bootstrap.php';
 //   cat payload.json | LUNIXI_HEADER_EVENT_ID=evt_... \
 //     LUNIXI_HEADER_EVENT_TYPE=payment.captured \
 //     LUNIXI_HEADER_TIMESTAMP=2026-08-16T12:00:00Z \
-//     LUNIXI_HEADER_SIGNATURE=sha256=... \
+//     LUNIXI_HEADER_SIGNATURE=v2=... \
 //     php samples/05-webhooks/verify-from-stdin.php
 
 $rawBody = stream_get_contents(STDIN);

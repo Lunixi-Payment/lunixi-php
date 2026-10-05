@@ -1,0 +1,37 @@
+{
+    "name": "lunixi/php-sdk",
+    "description": "Lunixi payment gateway PHP SDK — framework-agnostic client for payments, webhooks and platform services. Used standalone or bundled (scoped) inside the WordPress/WooCommerce, OpenCart and other integrations.",
+    "type": "library",
+    "version": "0.13.0",
+    "license": "MIT",
+    "keywords": ["lunixi", "payment", "gateway", "sdk", "webhook", "ed25519"],
+    "homepage": "https://lunixi.com",
+    "authors": [
+        { "name": "Lunixi", "homepage": "https://lunixi.com" }
+    ],
+    "require": {
+        "php": ">=7.4",
+        "ext-sodium": "*",
+        "ext-json": "*",
+        "ext-curl": "*",
+        "ext-hash": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5 || ^11.0"
+    },
+    "autoload": {
+        "psr-4": { "Lunixi\\Sdk\\": "src/" }
+    },
+    "autoload-dev": {
+        "psr-4": { "Lunixi\\Sdk\\Tests\\": "tests/" }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "lint": "@php -l src"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

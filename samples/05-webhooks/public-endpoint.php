@@ -33,8 +33,6 @@ if (sample_webhook_already_processed($event->id())) {
 
 switch ($event->type()) {
     case 'payment.captured':
-    case 'payment.succeeded':
-    case 'payment.completed':
         // Mark the order paid from the authenticated event payload.
         // Never finalize solely from a browser redirect.
         break;
