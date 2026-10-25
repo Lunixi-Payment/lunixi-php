@@ -10,10 +10,14 @@ use Lunixi\Sdk\Exception\ConfigurationException;
  * Builds the body for `POST /api/v1/sanction/screening/name`. Required: name.
  * Add as much identity context as you have for a sharper result.
  *
- *   $req = (new ScreenNameRequest('John Smith'))
+ *   $req = (new ScreenNameRequest('Ayla Kurgu'))
  *       ->withCountry('TR')->withSubjectType(SubjectType::PERSON)
- *       ->withMode(ScreenMode::SANCTIONS_PEP)
+ *       ->withRiskDomains([RiskDomain::SANCTIONS, RiskDomain::PEP, RiskDomain::RCA])
  *       ->withCustomerReference((string) $wpUserId);
+ *
+ * Without `withRiskDomains()` and `withMode()` every risk domain is screened.
+ * `mode` is a preset set of domains; sent with `riskDomains`, their
+ * intersection is screened (an empty intersection is a 400).
  */
 final class ScreenNameRequest
 {
@@ -63,9 +67,37 @@ final class ScreenNameRequest
         return $this;
     }
 
-    /** Match threshold (0–100). */
+    /**
+     * Narrows the screening to these risk domains ({@see RiskDomain}). An
+     * unknown domain is refused here: it is never dropped, because a domain
+     * nobody screened would read as "no match".
+     *
+     * @param string[] $riskDomains
+     */
+    public function withRiskDomains(array $riskDomains): self
+    {
+        $domains = array_values(array_unique($riskDomains));
+        if ($domains === []) {
+            throw new ConfigurationException('riskDomains must not be empty; leave it out to screen every risk domain.');
+        }
+        foreach ($domains as $domain) {
+            if (!is_string($domain) || !in_array($domain, RiskDomain::ALL, true)) {
+                throw new ConfigurationException('Unsupported risk domain ' . json_encode($domain) . '.');
+            }
+        }
+        $this->optional['riskDomains'] = $domains;
+        return $this;
+    }
+
+    /**
+     * Minimum match score. Matches score 0–1; the gateway also reads a value
+     * above 1 as a percentage (85 = 0.85).
+     */
     public function withThreshold(float $threshold): self
     {
+        if ($threshold < 0 || $threshold > 100) {
+            throw new ConfigurationException('threshold must be between 0 and 1 (or 0 and 100).');
+        }
         $this->optional['threshold'] = $threshold;
         return $this;
     }

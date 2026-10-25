@@ -12,7 +12,9 @@ use Lunixi\Sdk\Payment\CardDetails;
 use Lunixi\Sdk\Payment\CreateIntentRequest;
 use Lunixi\Sdk\Payment\DirectPaymentRequest;
 use Lunixi\Sdk\Payment\InstallmentOptionsRequest;
+use Lunixi\Sdk\Payment\InsuranceItemCategory;
 use Lunixi\Sdk\Payment\StoreCardRequest;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class DtoValidationTest extends TestCase
@@ -38,8 +40,6 @@ final class DtoValidationTest extends TestCase
     public function testCreateIntentNormalisesCurrencyAndComposesNestedDtos(): void
     {
         $request = (new CreateIntentRequest(1000, 'eur', 'o1'))
-            ->withPrice(1200)
-            ->withPaidPrice(1000)
             ->withBuyer(new Buyer([
                 'name' => 'Ada', 'surname' => 'L', 'identityNumber' => '11111111111',
                 'email' => 'a@b.co', 'gsmNumber' => '+90555', 'city' => 'Istanbul',
@@ -59,8 +59,9 @@ final class DtoValidationTest extends TestCase
 
         $body = $request->toArray();
         $this->assertSame('EUR', $body['currency']);
-        $this->assertSame(1200, $body['price']);
-        $this->assertSame(1000, $body['paidPrice']);
+        $this->assertSame(1000, $body['amount']);
+        $this->assertArrayNotHasKey('price', $body);
+        $this->assertArrayNotHasKey('paidPrice', $body);
         $this->assertSame('cust-card-1', $body['cardUserKey']);
         $this->assertSame('CARD', $body['paymentMethod']);
         $this->assertTrue($body['force3D']);
@@ -87,6 +88,189 @@ final class DtoValidationTest extends TestCase
     {
         $this->expectException(ConfigurationException::class);
         new BasketItem(['id' => 'i1', 'price' => -5, 'name' => 'n', 'category1' => 'c', 'itemType' => 'PHYSICAL']);
+    }
+
+    public function testBasketItemRejectsItemTypeOutsideTheGatewaySet(): void
+    {
+        $this->expectException(ConfigurationException::class);
+        new BasketItem(['id' => 'i1', 'price' => 100, 'name' => 'n', 'category1' => 'c', 'itemType' => 'DIGITAL']);
+    }
+
+    public function testBasketItemCopiesTheInsuranceFields(): void
+    {
+        $context = ['transportMode' => 'TRAIN', 'departureAt' => '2025-12-23T12:50:00+03:00', 'isPromotional' => false];
+        $item = new BasketItem([
+            'id' => 'item-1',
+            'price' => 100000,
+            'name' => 'Izmir-Ankara train ticket',
+            'category1' => 'ticket',
+            'itemType' => BasketItem::TYPE_VIRTUAL,
+            'insuranceCategory' => InsuranceItemCategory::TICKET,
+            'insuranceTypes' => ['TICKET_CANCELLATION'],
+            'insuranceEligible' => true,
+            'insuranceValueAmount' => 100000,
+            'insuranceContext' => $context,
+        ]);
+
+        $body = (new CreateIntentRequest(100000, 'TRY', 'o1'))->withBasketItems([$item])->toArray();
+        $sent = $body['basketItems'][0];
+        $this->assertSame('TICKET', $sent['insuranceCategory']);
+        $this->assertSame(['TICKET_CANCELLATION'], $sent['insuranceTypes']);
+        $this->assertTrue($sent['insuranceEligible']);
+        $this->assertSame(100000, $sent['insuranceValueAmount']);
+        $this->assertSame($context, $sent['insuranceContext']);
+        $this->assertSame(
+            '{"transportMode":"TRAIN","departureAt":"2025-12-23T12:50:00+03:00","isPromotional":false}',
+            json_encode($sent['insuranceContext'])
+        );
+    }
+
+    public function testInsuranceItemCategoriesMatchTheGatewayList(): void
+    {
+        $this->assertSame([
+            'TICKET', 'HOTEL', 'EVENT', 'DEVICE', 'ELECTRONICS', 'VEHICLE', 'TRAVEL', 'HOME', 'HEALTH',
+            'PET', 'MICROMOBILITY', 'MUSICAL_INSTRUMENT', 'SHIPMENT', 'EDUCATION',
+        ], InsuranceItemCategory::ALL);
+
+        $context = ['petSpecies' => 'CAT', 'petBreedCode' => 'SAMPLE_BREED'];
+        $item = new BasketItem([
+            'id' => 'item-2', 'price' => 50000, 'name' => 'Pet care plan', 'category1' => 'pet', 'itemType' => BasketItem::TYPE_VIRTUAL,
+            'insuranceCategory' => InsuranceItemCategory::PET, 'insuranceContext' => $context,
+        ]);
+        $sent = $item->toArray();
+        $this->assertSame('PET', $sent['insuranceCategory']);
+        $this->assertSame($context, $sent['insuranceContext']);
+    }
+
+    public function testBasketItemWithoutInsuranceFieldsIsUnchanged(): void
+    {
+        $item = new BasketItem([
+            'id' => 'i1', 'price' => 1000, 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => 'PHYSICAL',
+            'insuranceCategory' => null, 'insuranceContext' => [],
+        ]);
+        $this->assertSame(
+            ['id' => 'i1', 'price' => 1000, 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => 'PHYSICAL'],
+            $item->toArray()
+        );
+    }
+
+    public function testBasketItemCopiesTheInsuranceDataWithOneTypeObjectForTheItem(): void
+    {
+        // Synthetic values: a made-up passport number, a sample PNR and ticket number.
+        $insuranceData = [
+            'insured' => [['identityType' => 'PASSPORT', 'identityNumber' => 'P0000000', 'birthDate' => '2000-01-01', 'email' => 'insured@example.com']],
+            'tickets' => ['carrier' => 'Sample Rail', 'priceAmount' => 100000, 'pnr' => 'SAMPLE1', 'ticketNumber' => 'SAMPLE-0001'],
+        ];
+        $item = new BasketItem([
+            'id' => 'item-1', 'price' => 100000, 'name' => 'Izmir-Ankara train ticket', 'category1' => 'ticket',
+            'itemType' => BasketItem::TYPE_VIRTUAL, 'insuranceCategory' => InsuranceItemCategory::TICKET,
+            'insuranceTypes' => ['TICKET_CANCELLATION'], 'insuranceData' => $insuranceData,
+        ]);
+
+        $sent = (new CreateIntentRequest(100000, 'TRY', 'o1'))->withBasketItems([$item])->toArray()['basketItems'][0];
+        $this->assertSame($insuranceData, $sent['insuranceData']);
+        $this->assertSame(
+            '{"carrier":"Sample Rail","priceAmount":100000,"pnr":"SAMPLE1","ticketNumber":"SAMPLE-0001"}',
+            json_encode($sent['insuranceData']['tickets']),
+            'tickets is one object for the item'
+        );
+
+        $everyRoot = [];
+        foreach (BasketItem::INSURANCE_DATA_TYPE_ROOTS as $root) {
+            $everyRoot[$root] = ['startDate' => '2026-01-02'];
+        }
+        $this->assertSame([
+            'tickets', 'stay', 'device', 'product', 'vehicle', 'trip', 'rental', 'instrument',
+            'event', 'accident', 'procedure', 'pet', 'residence', 'abroadStay', 'property', 'health',
+        ], BasketItem::INSURANCE_DATA_TYPE_ROOTS, 'the type roots of the gateway (insurance-data-fields.ts)');
+        $all = new BasketItem([
+            'id' => 'item-2', 'price' => 1000, 'name' => 'n', 'category1' => 'c', 'itemType' => 'VIRTUAL',
+            'insuranceCategory' => InsuranceItemCategory::TRAVEL, 'insuranceData' => ['policyholder' => ['firstName' => 'Sample']] + $everyRoot,
+        ]);
+        $this->assertSame(array_merge(['policyholder'], BasketItem::INSURANCE_DATA_TYPE_ROOTS), array_keys($all->toArray()['insuranceData']));
+    }
+
+    public function testBasketItemLeavesOutAnEmptyOrNullInsuranceData(): void
+    {
+        $base = ['id' => 'i1', 'price' => 1000, 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => 'PHYSICAL'];
+        foreach ([null, [], ['tickets' => null]] as $insuranceData) {
+            $this->assertSame($base, (new BasketItem($base + ['insuranceData' => $insuranceData]))->toArray());
+        }
+        $sent = (new BasketItem($base + [
+            'insuranceCategory' => InsuranceItemCategory::DEVICE,
+            'insuranceData' => ['device' => ['serialNumber' => 'SAMPLE-SN-1'], 'insured' => null],
+        ]))->toArray();
+        $this->assertSame(['device' => ['serialNumber' => 'SAMPLE-SN-1']], $sent['insuranceData'], 'a null root is not sent');
+    }
+
+    public function testBasketItemInsuranceDataErrorsNameThePathNotTheValue(): void
+    {
+        try {
+            new BasketItem([
+                'id' => 'i1', 'price' => 1000, 'name' => 'n', 'category1' => 'c', 'itemType' => 'VIRTUAL',
+                'insuranceCategory' => InsuranceItemCategory::TICKET,
+                'insuranceData' => ['insured' => [['identityNumber' => 'P0000000', 'email' => null]]],
+            ]);
+            $this->fail('a null field was accepted');
+        } catch (ConfigurationException $error) {
+            $this->assertStringContainsString('insuranceData.insured[0].email', $error->getMessage());
+            $this->assertStringNotContainsString('P0000000', $error->getMessage());
+        }
+    }
+
+    public function testBasketItemAcceptsInsuranceEligibleFalseAlone(): void
+    {
+        $item = new BasketItem([
+            'id' => 'i1', 'price' => 1000, 'name' => 'Gift card', 'category1' => 'Cat', 'itemType' => 'VIRTUAL',
+            'insuranceEligible' => false,
+        ]);
+        $this->assertFalse($item->toArray()['insuranceEligible']);
+    }
+
+    /**
+     * @return array<string, array{0: array<string, mixed>}>
+     */
+    public static function invalidInsuranceFields(): array
+    {
+        return [
+            'unknown category' => [['insuranceCategory' => 'CAR']],
+            'types without category' => [['insuranceTypes' => ['TICKET_CANCELLATION']]],
+            'value without category' => [['insuranceValueAmount' => 1000]],
+            'context without category' => [['insuranceContext' => ['transportMode' => 'BUS']]],
+            'type code format' => [['insuranceCategory' => 'TICKET', 'insuranceTypes' => ['ticket_cancellation']]],
+            'repeated type code' => [['insuranceCategory' => 'TICKET', 'insuranceTypes' => ['TICKET_CANCELLATION', 'TICKET_CANCELLATION']]],
+            'too many type codes' => [['insuranceCategory' => 'TICKET', 'insuranceTypes' => array_map(
+                static fn (int $i): string => 'TYPE_' . $i,
+                range(1, 11)
+            )]],
+            'types not a list' => [['insuranceCategory' => 'TICKET', 'insuranceTypes' => 'TICKET_CANCELLATION']],
+            'eligible as string' => [['insuranceEligible' => 'false']],
+            'zero value' => [['insuranceCategory' => 'DEVICE', 'insuranceValueAmount' => 0]],
+            'value as float' => [['insuranceCategory' => 'DEVICE', 'insuranceValueAmount' => 10.5]],
+            'context as list' => [['insuranceCategory' => 'TICKET', 'insuranceContext' => ['BUS']]],
+            'data without category' => [['insuranceData' => ['tickets' => ['pnr' => 'SAMPLE1']]]],
+            'data as list' => [['insuranceCategory' => 'TICKET', 'insuranceData' => [['pnr' => 'SAMPLE1']]]],
+            'data as string' => [['insuranceCategory' => 'TICKET', 'insuranceData' => 'SAMPLE1']],
+            'data unknown root' => [['insuranceCategory' => 'TICKET', 'insuranceData' => ['ticket' => ['pnr' => 'SAMPLE1']]]],
+            'data list type object as list' => [['insuranceCategory' => 'TICKET', 'insuranceData' => ['tickets' => [['pnr' => 'SAMPLE1']]]]],
+            'data type object with basketItemId' => [['insuranceCategory' => 'TICKET', 'insuranceData' => ['tickets' => ['basketItemId' => 'i1', 'pnr' => 'SAMPLE1']]]],
+            'data empty type object' => [['insuranceCategory' => 'DEVICE', 'insuranceData' => ['device' => []]]],
+            'data policyholder as string' => [['insuranceCategory' => 'TICKET', 'insuranceData' => ['policyholder' => 'Sample']]],
+            'data insured as object' => [['insuranceCategory' => 'TICKET', 'insuranceData' => ['insured' => ['identityType' => 'PASSPORT']]]],
+            'data insured empty' => [['insuranceCategory' => 'TICKET', 'insuranceData' => ['insured' => []]]],
+            'data insured over ten' => [['insuranceCategory' => 'TICKET', 'insuranceData' => ['insured' => array_fill(0, 11, ['birthDate' => '2000-01-01'])]]],
+            'data insured entry not an object' => [['insuranceCategory' => 'TICKET', 'insuranceData' => ['insured' => ['P0000000']]]],
+            'data nested null' => [['insuranceCategory' => 'DEVICE', 'insuranceData' => ['device' => ['serialNumber' => null]]]],
+            'data over 16 KB' => [['insuranceCategory' => 'DEVICE', 'insuranceData' => ['device' => ['serialNumber' => str_repeat('x', 16384)]]]],
+        ];
+    }
+
+    /** @param array<string, mixed> $fields */
+    #[DataProvider('invalidInsuranceFields')]
+    public function testBasketItemRejectsInvalidInsuranceFields(array $fields): void
+    {
+        $this->expectException(ConfigurationException::class);
+        new BasketItem(['id' => 'i1', 'price' => 1000, 'name' => 'n', 'category1' => 'c', 'itemType' => 'VIRTUAL'] + $fields);
     }
 
     public function testDirectPaymentRequestMapsBackendProcessPaymentDto(): void
@@ -122,8 +306,10 @@ final class DtoValidationTest extends TestCase
             ->withMetadata(['order' => 'o1']);
 
         $body = $request->toArray();
-        $this->assertSame(1000, $body['paidPrice']);
+        $this->assertSame(1000, $body['amount']);
+        $this->assertArrayNotHasKey('paidPrice', $body);
         $this->assertSame('TRY', $body['currency']);
+        $this->assertSame(3, $body['installment']);
         $this->assertSame('iq_1', $body['installmentQuoteToken']);
         $this->assertTrue($body['card']['cardSave']);
         $this->assertSame('Ada', $body['buyer']['name']);

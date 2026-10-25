@@ -8,14 +8,19 @@ use Lunixi\Sdk\Http\Envelope;
 
 use Lunixi\Sdk\ApiClient;
 use Lunixi\Sdk\Exception\ApiException;
+use Lunixi\Sdk\Exception\ConfigurationException;
 use Lunixi\Sdk\Payment\CheckoutIntent;
 use Lunixi\Sdk\Payment\CreateIntentRequest;
+use Lunixi\Sdk\Payment\DirectPaymentRequest;
+use Lunixi\Sdk\Payment\PaymentClient;
 
 /**
  * Marketplace (alt bayi split) operations.
  *
  *   Split checkout (hosted form):
  *     createCheckoutIntent  POST /api/v1/payments/marketplace/intents (step-up)
+ *   Split direct charge (raw PAN, SAQ-D):
+ *     chargeMarketplaceCard2d / 3d  POST /api/v1/payments/marketplace/2d|3d (step-up)
  *   Sub-dealer management (bearer):
  *     createDealer / listDealers / getDealer / updateDealerStatus / onboardingToken
  *   Reporting (bearer):
@@ -83,17 +88,76 @@ final class MarketplaceClient
      *
      * ⚠️ PCI: raw PAN — SAQ-D only. Most marketplaces use createCheckoutIntent().
      * Step-up signed. The split legs travel in the payload (sellers[]).
+     * Prefer chargeMarketplaceCard2d()/3d(), which build the body from a
+     * DirectPaymentRequest.
      *
-     * @param array<string,mixed> $payload paidPrice, currency, orderId, card{…},
-     *   buyer{…}, sellers[]{ subMerchantKey, paidPrice, ... }…
+     * @param array<string,mixed> $payload amount (basket total, minor units),
+     *   currency, orderId, card{…}, buyer{…}, preauth?,
+     *   sellers[]{ subDealerId, amountMinor (digit string), scenario? },
+     *   multiSellerPolicy?… The sellers' `amountMinor` values must add up to
+     *   `amount`; the gateway refuses any other total with 400. `price` /
+     *   `paidPrice` were removed and are refused before sending.
      * @param bool $threeDS true → POST /marketplace/3d; false → /marketplace/2d.
      * @return array<string,mixed>
      */
     public function chargeMarketplaceCard(array $payload, bool $threeDS = false, ?string $idempotencyKey = null): array
     {
+        PaymentClient::assertNoRemovedAmountFields($payload);
+        PaymentClient::assertPreauthField($payload);
+
         return $this->api->request('POST', self::PAY_BASE . '/' . ($threeDS ? '3d' : '2d'), $payload, [
             'stepUp' => true,
             'idempotencyKey' => $idempotencyKey,
+        ]);
+    }
+
+    /**
+     * Marketplace split charge without 3-D Secure (POST /payments/marketplace/2d).
+     * The body is the DirectPaymentRequest (`withPreauth()` included) plus the
+     * seller legs.
+     *
+     * @param MarketplaceSeller[] $sellers
+     * @return array<string,mixed>
+     */
+    public function chargeMarketplaceCard2d(
+        DirectPaymentRequest $request,
+        array $sellers,
+        string $multiSellerPolicy = self::POLICY_ALL_OR_NOTHING,
+        ?string $idempotencyKey = null
+    ): array {
+        return $this->chargeMarketplaceCard(self::splitBody($request, $sellers, $multiSellerPolicy), false, $idempotencyKey);
+    }
+
+    /**
+     * Marketplace split charge with 3-D Secure (POST /payments/marketplace/3d).
+     * The body is the DirectPaymentRequest (`withPreauth()` included) plus the
+     * seller legs.
+     *
+     * @param MarketplaceSeller[] $sellers
+     * @return array<string,mixed>
+     */
+    public function chargeMarketplaceCard3d(
+        DirectPaymentRequest $request,
+        array $sellers,
+        string $multiSellerPolicy = self::POLICY_ALL_OR_NOTHING,
+        ?string $idempotencyKey = null
+    ): array {
+        return $this->chargeMarketplaceCard(self::splitBody($request, $sellers, $multiSellerPolicy), true, $idempotencyKey);
+    }
+
+    /**
+     * @param MarketplaceSeller[] $sellers
+     * @return array<string,mixed>
+     */
+    private static function splitBody(DirectPaymentRequest $request, array $sellers, string $multiSellerPolicy): array
+    {
+        if ($sellers === []) {
+            throw new ConfigurationException('A marketplace charge requires at least one seller leg.');
+        }
+
+        return array_merge($request->toArray(), [
+            'sellers' => array_map(static fn (MarketplaceSeller $s): array => $s->toArray(), array_values($sellers)),
+            'multiSellerPolicy' => $multiSellerPolicy,
         ]);
     }
 
