@@ -66,6 +66,29 @@ final class PaymentIntent
         return isset($this->data['providerCode']) ? (string) $this->data['providerCode'] : null;
     }
 
+    /** Payment method code (PaymentMethod::*), or null when the gateway did not send one. */
+    public function paymentMethod(): ?string
+    {
+        $method = $this->data['paymentMethod'] ?? null;
+        return is_string($method) && $method !== '' ? $method : null;
+    }
+
+    /** The open action of the payment (OTP, REDIRECT …) while it waits for the buyer. */
+    public function action(): ?PaymentAction
+    {
+        $action = $this->data['action'] ?? null;
+        return is_array($action) && isset($action['id']) && $action['id'] !== '' ? new PaymentAction($action) : null;
+    }
+
+    /**
+     * Split payment mark: the main payment of a split payment (ROLE_PARENT) or
+     * one of its legs (ROLE_LEG); null for any other payment.
+     */
+    public function split(): ?PaymentSplitRef
+    {
+        return PaymentSplitRef::fromRow($this->data['split'] ?? null);
+    }
+
     /** 3DS redirect URL when the intent is awaiting 3-D Secure (else null). */
     public function threeDRedirectUrl(): ?string
     {

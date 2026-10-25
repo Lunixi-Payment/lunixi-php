@@ -7,10 +7,22 @@ namespace Lunixi\Sdk\Payment;
 use Lunixi\Sdk\Exception\ConfigurationException;
 
 /**
- * Body for POST /api/v1/payments/direct/2d and /direct/3d (ProcessPaymentDto).
- * Amounts are minor-unit integers. Raw card direct API is PCI SAQ-D territory.
+ * Base body of the marketplace split charge
+ * (MarketplaceClient::chargeMarketplaceCard2d/3d → POST /api/v1/payments/marketplace/2d|3d),
+ * `withPreauth()` included. Raw card direct API is PCI SAQ-D territory.
  *
- * Lunixi requires the commercial context for direct charges: card + buyer +
+ * It is not a single-merchant card charge: the direct 2D/3D card endpoints were
+ * removed. A single-merchant card is paid with PaymentClient::directMethodPayment()
+ * and DirectMethodPaymentRequest::withCard() (withForce3D(true) for 3D Secure).
+ *
+ * `amount` is the only amount field: the basket total in minor units (an
+ * integer of at least 1), without any installment fee; the basket items'
+ * `price` values must add up to it. For an installment charge send
+ * withInstallment($count, $quoteToken) with the quote from
+ * PaymentClient::installmentOptions(): the system adds the installment fee to
+ * the charged amount.
+ *
+ * Lunixi requires the commercial context for these charges: card + buyer +
  * billing address + basket items. A card alone is not enough to build a
  * traceable, fraud-scored, auditable payment.
  */
@@ -23,7 +35,7 @@ final class DirectPaymentRequest
      * @param BasketItem[] $basketItems
      */
     public function __construct(
-        int $paidPrice,
+        int $amount,
         string $currency,
         string $orderId,
         CardDetails $card,
@@ -32,8 +44,8 @@ final class DirectPaymentRequest
         array $basketItems
     )
     {
-        if ($paidPrice < 1) {
-            throw new ConfigurationException("DirectPaymentRequest 'paidPrice' must be a positive integer (minor units).");
+        if ($amount < 1) {
+            throw new ConfigurationException("DirectPaymentRequest 'amount' must be a positive integer (minor units).");
         }
         $currency = strtoupper($currency);
         if (!Currency::isSupported($currency)) {
@@ -47,7 +59,7 @@ final class DirectPaymentRequest
         }
 
         $this->data = [
-            'paidPrice' => $paidPrice,
+            'amount' => $amount,
             'currency' => $currency,
             'orderId' => $orderId,
             'card' => $card->toArray(),
@@ -60,12 +72,11 @@ final class DirectPaymentRequest
         ];
     }
 
-    public function withPrice(int $price): self
-    {
-        $this->data['price'] = max(0, $price);
-        return $this;
-    }
-
+    /**
+     * Installment count. `$quoteToken` binds the charge to a quote from
+     * PaymentClient::installmentOptions(); the system adds the quoted
+     * installment fee to `amount`.
+     */
     public function withInstallment(int $installment, ?string $quoteToken = null): self
     {
         $this->data['installment'] = max(1, $installment);
@@ -78,6 +89,18 @@ final class DirectPaymentRequest
     public function withCallbackUrl(string $url): self
     {
         $this->data['callbackUrl'] = $url;
+        return $this;
+    }
+
+    /**
+     * Pre-authorization. `true` holds the amount on the card and the payment
+     * becomes `AUTHORIZED`; take it later with PaymentClient::capture() or
+     * release it with PaymentClient::void(). `false` (or not calling this)
+     * captures immediately. Sent as the typed `preauth` field.
+     */
+    public function withPreauth(bool $preauth): self
+    {
+        $this->data['preauth'] = $preauth;
         return $this;
     }
 
