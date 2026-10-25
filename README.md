@@ -1,4 +1,17 @@
+<p align="center">
+  <a href="https://lunixi.com">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Lunixi-Payment/lunixi-php/main/.github/assets/lunixi-logo-dark.svg">
+      <img src="https://raw.githubusercontent.com/Lunixi-Payment/lunixi-php/main/.github/assets/lunixi-logo.svg" alt="Lunixi" height="64">
+    </picture>
+  </a>
+</p>
+
 # Lunixi PHP SDK
+
+[![CI](https://github.com/Lunixi-Payment/lunixi-php/actions/workflows/ci.yml/badge.svg)](https://github.com/Lunixi-Payment/lunixi-php/actions/workflows/ci.yml) [![Packagist](https://img.shields.io/packagist/v/lunixi/php-sdk?label=packagist)](https://packagist.org/packages/lunixi/php-sdk) [![Downloads](https://img.shields.io/packagist/dt/lunixi/php-sdk)](https://packagist.org/packages/lunixi/php-sdk/stats) [![PHP](https://img.shields.io/packagist/dependency-v/lunixi/php-sdk/php)](https://packagist.org/packages/lunixi/php-sdk) [![License](https://img.shields.io/packagist/l/lunixi/php-sdk)](LICENSE) [![Docs](https://img.shields.io/badge/docs-docs.lunixi.com-FF6B35)](https://docs.lunixi.com/sdks/php)
+
+**[Documentation](https://docs.lunixi.com/sdks/php) · [Changelog](https://github.com/Lunixi-Payment/lunixi-php/blob/main/CHANGELOG.md) · [Issues](https://github.com/Lunixi-Payment/lunixi-php/issues) · [Security](https://github.com/Lunixi-Payment/lunixi-php/blob/main/SECURITY.md)**
 
 Framework-agnostic PHP client for the Lunixi payment gateway. Used standalone
 (`composer require lunixi/php-sdk`) or bundled — namespace-scoped via PHP-Scoper —
