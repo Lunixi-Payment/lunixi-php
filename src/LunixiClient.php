@@ -7,14 +7,17 @@ namespace Lunixi\Sdk;
 use Lunixi\Sdk\Auth\Ed25519Signer;
 use Lunixi\Sdk\Auth\TokenManager;
 use Lunixi\Sdk\Auth\TokenStoreInterface;
+use Lunixi\Sdk\BankConnect\BankConnectClient;
 use Lunixi\Sdk\Http\CurlHttpClient;
 use Lunixi\Sdk\Http\HttpClientInterface;
 use Lunixi\Sdk\Fraud\FraudClient;
 use Lunixi\Sdk\Identity\IdentityClient;
+use Lunixi\Sdk\Insurance\InsuranceClient;
 use Lunixi\Sdk\Kyc\KycClient;
 use Lunixi\Sdk\Marketplace\MarketplaceClient;
 use Lunixi\Sdk\Payment\PaymentClient;
 use Lunixi\Sdk\Payment\PaymentLinkClient;
+use Lunixi\Sdk\Reference\ReferenceClient;
 use Lunixi\Sdk\Sanction\SanctionClient;
 use Lunixi\Sdk\Subscription\SubscriptionClient;
 use Lunixi\Sdk\Wallet\WalletClient;
@@ -50,6 +53,9 @@ final class LunixiClient
     private MarketplaceClient $marketplace;
     private IdentityClient $identity;
     private WalletClient $wallet;
+    private BankConnectClient $bankConnect;
+    private ReferenceClient $reference;
+    private InsuranceClient $insurance;
     private WebhookVerifier $webhooks;
 
     public function __construct(
@@ -73,6 +79,9 @@ final class LunixiClient
         $this->marketplace = new MarketplaceClient($this->api);
         $this->identity = new IdentityClient($this->api);
         $this->wallet = new WalletClient($this->api);
+        $this->bankConnect = new BankConnectClient($this->api);
+        $this->reference = new ReferenceClient($this->api);
+        $this->insurance = new InsuranceClient($this->api);
         $this->webhooks = new WebhookVerifier();
     }
 
@@ -155,6 +164,35 @@ final class LunixiClient
     public function wallet(): WalletClient
     {
         return $this->wallet;
+    }
+
+    /**
+     * Bank accounts (`/api/v1/bank-connect`): your connected bank accounts,
+     * their balances and transactions, and a request for a fresh read.
+     */
+    public function bankConnect(): BankConnectClient
+    {
+        return $this->bankConnect;
+    }
+
+    /**
+     * Public reference data: Türkiye address codes (province, district,
+     * neighborhood) for ADDRESS input fields such as the Senetle Ödeme debtor
+     * address.
+     */
+    public function reference(): ReferenceClient
+    {
+        return $this->reference;
+    }
+
+    /**
+     * Insurance (`/api/v1/insurance`, product INSURANCE_SERVICE): insurance
+     * types for your basket items, quotes, orders, the premium item of your
+     * payment, policies, cancellation and refund, reconciliation.
+     */
+    public function insurance(): InsuranceClient
+    {
+        return $this->insurance;
     }
 
     public function webhooks(): WebhookVerifier

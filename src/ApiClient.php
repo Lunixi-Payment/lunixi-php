@@ -57,37 +57,48 @@ final class ApiClient
     }
 
     /**
-     * @param string                    $method  HTTP method.
-     * @param string                    $path    Path beginning with "/" (signed verbatim as the canonical URL).
-     * @param array<string,mixed>|null  $body    JSON body for the request, or null.
+     * @param string                              $method  HTTP method.
+     * @param string                              $path    Path beginning with "/" (signed verbatim as the canonical URL).
+     * @param array<string,mixed>|\stdClass|null  $body    JSON body for the request, or null. An empty
+     *   `\stdClass` sends `{}` (an empty PHP array would encode as `[]`).
      * @param array{stepUp?:bool, idempotencyKey?:string|null, query?:array<string,scalar>} $options
      * @return array<string,mixed> Decoded JSON response.
      * @throws ApiException
      */
-    public function request(string $method, string $path, ?array $body = null, array $options = []): array
+    public function request(string $method, string $path, $body = null, array $options = []): array
     {
+        if ($body !== null && !is_array($body) && !$body instanceof \stdClass) {
+            throw new \InvalidArgumentException('The request body must be an array, a stdClass or null.');
+        }
+
         return $this->send($method, $path, $body, $options, self::ACCEPT_JSON)->json();
     }
 
     /**
      * Same as {@see request()} for an endpoint that answers with bytes (an
-     * image) instead of JSON. Returns the successful response untouched; an
-     * error response is still read as a JSON error and thrown.
+     * image, a PDF, a CSV file) instead of JSON. Returns the successful response
+     * untouched; an error response is still read as a JSON error and thrown.
+     * `accept` overrides the Accept header (default: the image types; it is not
+     * part of the signature).
      *
-     * @param array{stepUp?:bool, idempotencyKey?:string|null, query?:array<string,scalar>} $options
+     * @param array{stepUp?:bool, idempotencyKey?:string|null, query?:array<string,scalar>, accept?:string} $options
      * @throws ApiException
      */
     public function requestBinary(string $method, string $path, array $options = []): HttpResponse
     {
-        return $this->send($method, $path, null, $options, self::ACCEPT_BINARY);
+        $accept = isset($options['accept']) && is_string($options['accept']) && $options['accept'] !== ''
+            ? $options['accept']
+            : self::ACCEPT_BINARY;
+
+        return $this->send($method, $path, null, $options, $accept);
     }
 
     /**
-     * @param array<string,mixed>|null $body
+     * @param array<string,mixed>|\stdClass|null $body
      * @param array{stepUp?:bool, idempotencyKey?:string|null, query?:array<string,scalar>} $options
      * @throws ApiException
      */
-    private function send(string $method, string $path, ?array $body, array $options, string $accept): HttpResponse
+    private function send(string $method, string $path, $body, array $options, string $accept): HttpResponse
     {
         $method = strtoupper($method);
         $stepUp = (bool) ($options['stepUp'] ?? false);
