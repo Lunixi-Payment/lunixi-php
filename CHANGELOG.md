@@ -2,6 +2,623 @@
 
 All notable changes to `lunixi/php-sdk`.
 
+## 0.28.1
+
+### Fixed
+
+- `SanctionClient::listMonitoringMatches()` / `listBlacklistEntries()` (and
+  their `iterate…` forms): `nextCursor()` read the cursor only inside `data`,
+  but these lists send `pageInfo` beside `data`, so it was `null` and
+  iteration stopped after the first page. The cursor is now read from there
+  too, in the same order as the Node SDK.
+
+## 0.28.0
+
+Insurance data on a basket item. Additive: no class, method or field was
+removed. The gateway and the Checkout Form that prefills and prices it are live.
+
+### Added
+
+- `BasketItem` accepts `insuranceData` (it was dropped before): the root
+  fields of the insurance type's quote body (`policyholder`, `insured`, one
+  type object such as `tickets` or `device`). Checked before sending: an array
+  keyed by root, known roots only (`BasketItem::INSURANCE_DATA_PERSON_ROOTS`,
+  `INSURANCE_DATA_TYPE_ROOTS`), `insured` a list of 1–10 objects, the other
+  roots one object, no `basketItemId` in a type object, no nested `null`, at
+  most 16 KB as JSON (`INSURANCE_DATA_MAX_BYTES`); `insuranceCategory` is
+  required with it. A `null` root, or an empty array, counts as not sent.
+  Messages name the field path, never the value.
+- `InsuranceProduct::prefill()`, `providedFields()` (`path`, `masked`),
+  `quoteReady()` and `insuranceDataIssues()` (`basketItemId`, `field`,
+  `reason`).
+- Sample `samples/10-insurance/checkout-with-insurance-data.php`.
+
+## 0.27.0
+
+Split payments (one payment funded by stored cards and non-card methods) and
+payment options (provider order, a provider turned off only in the checkout
+form). Requires the gateway release with split payment legs of other methods;
+do not publish this version before it is live.
+
+### Added
+
+- `PaymentClient::createSplitPayment(SplitPaymentRequest, $idempotencyKey)`
+  (`POST /payments/split`) with the `SplitPaymentRequest` builder:
+  `addCardLeg($cardToken, $amount, $force3D, $installment, $quoteToken)` and
+  `addMethodLeg($method, $providerCode, $amount, $fields)` (the
+  `direct/payment` block; `providerCode` required). Checked before sending, as
+  in the Node SDK. Result `SplitPaymentResult` with `steps()`
+  (`SplitPaymentStep`), `pendingStep()` (`SplitPaymentPendingStep`) and
+  `expiresAt()`.
+- Continuing a split payment after a step is the same call with the same
+  request and key. While the payment runs the gateway answers HTTP 400 with the
+  split status as `code`; `createSplitPayment()` returns that answer
+  (`SplitPaymentStatus::IN_PROGRESS`). A failed split payment still throws
+  `ApiException`.
+- `getSplitPayment()` (`SplitPaymentDetail`, `SplitPaymentLeg`),
+  `listSplitPayments()` (`SplitPaymentList`), `refundSplitPayment()`
+  (`SplitRefundResult`).
+- `list(['includeLegs' => true])`; `PaymentIntent::split()` (`PaymentSplitRef`).
+- `PaymentMethodInfo::splitEligible()`, `splitBehavior()`;
+  `PaymentMethodProvider::splitEligible()`, `splitBehavior()`.
+- `SplitBehavior`, `SplitPaymentStatus`, `SplitPaymentEvents` (with
+  `LEG_EVENTS_SUBSCRIPTION`), `SplitPayErrorCode`, `CheckoutFormErrorCode`.
+- Sample `02-payments/split-payment.php`.
+- 3D Secure display of the Checkout Form split payment (set in the panel, Form
+  Settings → 3D Secure → 3D Secure display): `ThreeDsDisplay` (`INLINE`,
+  `REDIRECT`). `SplitPaymentResult::threeDsDisplay()` and
+  `SplitPaymentResult::completion()` read the form and continuation page
+  answers; both are null on `POST /payments/split`.
+- `SplitPaymentResult::paymentId()`: the main (checkout) payment's `paymentId`
+  in the form answers (`form/split/init`, `form/split/status`) and the
+  continuation page answers; null on `POST /payments/split`.
+- `SplitCompletionOutcome` (`success`, `failure`, `pending`): the `status` of
+  the signed POST your `callbackUrl` receives when a split payment concludes on
+  the hosted continuation page.
+- `SplitPayErrorCode`: `RESUME_UNAVAILABLE`, `RESUME_ALREADY_OPENED`,
+  `RESUME_PROOF_INVALID`, `RESUME_NOT_CONFIGURED`,
+  `THREE_DS_RESTART_EXHAUSTED`, `THREE_DS_RESTART_EXPIRED`
+  (`split_pay.three_ds.restart_expired`, HTTP 410: the card's 3D Secure session
+  is closed or has expired, the buyer is asked to enter the card again;
+  `details.reason` `THREE_DS_CLOSED` or `THREE_DS_SESSION_EXPIRED`).
+- `SplitPayErrorCode::INSURANCE_REQUIRES_CARD_LEG`
+  (`split_pay.insurance.requires_card_leg`, HTTP 422): insurance is selected
+  in the Checkout Form but the split payment has no card leg. The premium is
+  collected from a card leg, and card legs of an insured split payment are
+  single-payment (no installments).
+
+### Changed
+
+- Faturana Yansıt examples and the sample send the `providerCode` your buyer
+  picked. `providerSelectionMode()` is documented as the API behaviour; in the
+  Checkout Form the buyer always picks the provider.
+- `listPaymentMethods()` documents the order (form settings) and that a
+  provider turned off only in the checkout form stays in the list.
+- README: parçalı ödeme örnekleri (split payment examples): multiple cards,
+  multiple payment methods (several cards with a wallet and Faturana Yansıt),
+  reading the steps, completing the pending step (action confirm) and handling
+  `split_pay.*` errors, with links to the docs pages.
+
+## 0.26.0
+
+Additive: no public class, method or constant was removed.
+
+### Added
+
+- **Insurance leads** for the types sold by request only (no quote, premium,
+  order or policy): `InsuranceClient::createLead($request, $idempotencyKey)`
+  (HTTP 201, key required), `listLeads(['limit', 'cursor', 'insuranceType',
+  'status'])` / `iterateLeads()`, `getLead($leadId)`, returning `InsuranceLead`
+  (`leadId()`, `insuranceType()`, `schemaVersion()`, `status()`, `errorCode()`,
+  `requestMasked()`, `submittedAt()`, `createdAt()`, `updatedAt()`).
+  `InsuranceLeadStatus` (`PENDING`, `SUBMITTED`, `UNKNOWN`, `FAILED`);
+  `InsuranceClient::LEAD_FIELDS`, `LEAD_NOTE_MAX_LENGTH`,
+  `FILTERS['listLeads']`. The lead `note` is sent as given, at most 1000
+  characters.
+- `InsuranceEvents::LEAD_SUBMITTED` (`insurance.lead.submitted`) and the
+  lists `ORDER_EVENTS` and `LEAD_EVENTS`; `InsuranceLeadWebhookData::fromEvent()`
+  with `lead()` (`InsuranceWebhookLead`).
+- `InsuranceClient::getPolicyReceipt()` and `getPolicyCertificate()`: the
+  provider's receipt and certificate PDF of a policy, for products that issue
+  them.
+- `createQuote()` accepts the type objects `pet` (`PET_HEALTH`), `residence`
+  (`FOREIGN_RESIDENT_HEALTH`) and `abroadStay` (`ABROAD_STAY_HEALTH`).
+
+### Changed
+
+- `InsuranceEvents::ALL` also lists `insurance.lead.submitted`.
+  `InsuranceWebhookData::fromEvent()` reads the order events only
+  (`ORDER_EVENTS`) and refuses a lead event; read that one with
+  `InsuranceLeadWebhookData::fromEvent()`.
+
+## 0.25.0
+
+Additive: no public class, method or constant was removed.
+
+### Added
+
+- **Insurance sold without a basket item.** `InsuranceClient::listProducts()`
+  without `paymentIntentId` lists the insurance types sold on their own
+  (`basketItemIds()` empty), and `createQuote()` with neither `paymentIntentId`
+  nor `context` prices one; the insured value is in the type object. Both
+  basket sources together is still a `ConfigurationException`.
+- **Insurance company of a quote option.** `InsuranceQuoteOption::underwriter()`
+  (`InsuranceUnderwriter`: `code()`, `name()`, `logoUrl()`, `disclosureText()`),
+  apart from `provider()`; `underwriterName()` stays.
+  `InsuranceQuoteSet::excludedOptions()` (`InsuranceExcludedQuoteOption`:
+  `underwriter()`, `provider()`, `errorCode()`, `errors()`) lists the companies
+  the request could not be priced with. `InsuranceProduct::fields()` documents
+  the `requiredAt` / `requiredBy` keys.
+- `createQuote()` accepts every type object of the gateway: `stay`, `device`,
+  `product`, `vehicle`, `trip`, `rental`, `instrument`, `event`, `accident`,
+  `procedure` next to `tickets` (`InsuranceClient::QUOTE_FIELDS`). They were
+  refused before sending until now.
+- `InsuranceItemCategory`: `PET`, `MICROMOBILITY`, `MUSICAL_INSTRUMENT`,
+  `SHIPMENT`, `EDUCATION` (accepted by `BasketItem`).
+- `InsuranceReferenceKind`: `VEHICLE_USAGE`, `LIABILITY_LIMIT`, `OCCUPATION`,
+  `PET_BREED` (`parentCode` `CAT` | `DOG`), `DWELLING_TYPE`, `DWELLING_FLOOR`,
+  `BANK`, `BANK_BRANCH` (`parentCode` the bank), `FINANCE_INSTITUTION`,
+  `MEDICAL_PROCEDURE_COVER`.
+
+### Changed
+
+- `listProducts()` requires only `currency`.
+
+## 0.24.0
+
+Additive: no public class, method or constant was removed. `ApiClient::request()`
+now also takes a `stdClass` body (sent as a JSON object, `{}` when empty);
+existing calls are unchanged.
+
+### Added
+
+- **Insurance** (`$lunixi->insurance()`, `Insurance\InsuranceClient`) —
+  `/api/v1/insurance` (product INSURANCE_SERVICE). Every call is signed.
+  - `listProducts(['currency', 'paymentIntentId'])` and
+    `searchProducts(['currency', 'context' => ['items' => …]])` — insurance types
+    offered for a payment's basket or for the items before the payment
+    (`InsuranceProduct[]`; an empty list means not offered)
+  - `listReferenceValues($kind, $filters)` / `iterateReferenceValues()` — Lunixi
+    reference codes (`InsuranceReferenceKind`)
+  - `createQuote($request, ?$idempotencyKey)` (HTTP 201, `InsuranceQuoteSet`),
+    `getQuote($quoteId)` (`InsuranceQuoteOption`)
+  - `createOrder($request, $idempotencyKey)` (HTTP 201), `listOrders()` /
+    `iterateOrders()`, `getOrder($orderId)` — `InsuranceOrder`
+  - `bindPayment($orderId, $paymentIntentId, ?$idempotencyKey)`,
+    `confirmPayment($orderId, $payment, $idempotencyKey)`,
+    `issuePolicy($orderId, $idempotencyKey)`,
+    `cancelOrder($orderId, $idempotencyKey)`,
+    `refundPremium($orderId, ['externalRefund' => …]|[], $idempotencyKey)`
+  - `getPolicyDocument($policyId)` — the policy PDF (`InsurancePolicyDocument`)
+  - `getReconciliationSummary($filters)`, `listReconciliationOrders($filters)` /
+    `iterateReconciliationOrders()`, `exportReconciliation($filters)` — the CSV
+    (`InsuranceReconciliationExport`) with `truncated()` / `nextCursor()` for
+    files over 20000 orders and `aborted()` for an interrupted file
+  - `InsuranceClient::consentFromQuote($option, $acceptedAt)` and
+    `InsuranceClient::premiumBasketItem($order, $name, $category1)` — the order
+    consent and the VIRTUAL premium basket item (`id` = orderId, `price` =
+    premium) of an order whose premium you collect.
+- Request fields and filters are checked before sending: an unknown field, a
+  quote with both or neither of `paymentIntentId` and `context.items`, a
+  missing or malformed `Idempotency-Key` where it is required (8–200 printable
+  ASCII characters), a non-integer amount or an unknown reference kind is a
+  `ConfigurationException`. The insurance type's own fields are sent as given;
+  the gateway reports their errors (422 `insurance.validation.invalid`).
+- Response objects with one accessor per gateway field: `InsuranceProduct`,
+  `InsuranceReferenceValue`, `InsuranceQuoteSet`, `InsuranceQuoteOption`,
+  `InsuranceTerms`, `InsuranceProvider`, `InsuranceOrder`,
+  `InsuranceOrderPolicy`, `InsurancePage`, `InsuranceReconciliationSummary`,
+  `InsuranceReconciliationGroup`, `InsuranceReconciliationTotals`,
+  `InsuranceReconciliationOrder`, `InsuranceReconciliationPolicy`.
+- Value sets `InsurancePremiumCollectedBy`, `InsuranceQuoteStatus`,
+  `InsuranceOrderStatus`, `InsuranceCollectionStatus`, `InsurancePolicyStatus`,
+  `InsuranceRefundStatus`, `InsuranceDocumentStatus`, `InsurancePaymentMode`,
+  `InsuranceOrderSurface`, `InsuranceReferenceKind`.
+- Webhook: `InsuranceEvents` (`insurance.*`) and
+  `InsuranceWebhookData::fromEvent()` with `InsuranceWebhookPolicy`.
+- Samples in `samples/10-insurance`.
+
+## 0.23.0
+
+Sanctions screening brought up to the gateway (`/api/v1/sanction/*`): list
+publication evidence, coverage, merged matches, the wallet and procurement-ban
+result shapes, and a route table shared with the Node SDK. Contains breaking
+changes (0.x minor, as in 0.19.0): read "Changed" and "Removed" before
+upgrading.
+
+### Fixed
+
+- The screening results read the gateway envelope's `data`. `ScreenResult`
+  read `matches` at the response root, where the gateway never puts them, so
+  every name screening came back empty and `isClear()` was `true` even with
+  matches. `ScreenOutcome` read every field at the root as well.
+- `registerMonitoring()` and `addBlacklist()` read their id from `data`.
+
+### Added
+
+- `ScreenNameRequest::withRiskDomains()` (`RiskDomain`; an unknown or empty
+  list is refused before sending).
+- `ScreenResult`: `screeningRequestId()`, `publicationId()`,
+  `publicationRevision()`, `coverageStatus()`, `isCoverageComplete()`,
+  `evidenceRef()`, `screenedRiskDomains()`, `uncoveredRiskDomains()`,
+  `datasetFreshness()`, `success()`, `raw()`.
+- `SanctionMatch`: `entityId()`, `riskDomains()`, `sourceListName()`,
+  `lists()` (`SanctionMatchList`: datasetCode, displayName, datasetKind,
+  datasetVersionId, subLists, programs, entityIds, listings).
+- `WalletScreenResult` with `publicationHits()` (`WalletPublicationHit`:
+  listed party, `listedAddress`, `listedChains`, `caseRule`, `lists`) kept
+  apart from `hits()` (your own list and crypto intelligence).
+- `ProcurementBanScreenResult` (`ProcurementBanHit`, `searchedLists()`,
+  `uncoveredSources()`, coverage).
+- Pages and new reads: `listScreeningHistory`, `listMonitoringAlerts`,
+  `listMonitoredEntities`, `listMonitoringMatches`, `listBlacklistEntries`
+  (`SanctionPage`, each with an `iterate…`), `getDatasetFreshness`,
+  `searchEntities`, `getEntityProfile` (`screeningRequestId`),
+  `getEntityGraph`, `getIndirectExposure`, `getOwnershipAggregation`
+  (`entityIds` of a merged match). `registerMonitoring()` takes
+  `frequency` / `riskDomainScope` in a fourth `$options` argument.
+- `SanctionRoutes` (`ROUTES`, `NESTED_FIELDS`, `VALUE_SETS`), the same table
+  as the Node SDK's `SANCTION_ROUTES`. Bodies and filters of these routes are
+  checked before sending (unknown field, missing field, no party and no
+  account, none of entityName/tckn/vkn, value outside its set →
+  `ConfigurationException`).
+- `RiskDomain`, `CoverageStatus`, `WalletScreenMode`, `HitType`.
+
+### Changed
+
+- `isClear()` is `true` only for a successful screening with no match and
+  `coverageStatus` COMPLETE (`PARTIAL`, `DEGRADED` or no coverage is not
+  clear). `ScreenOutcome::isClear()` applies the coverage rule when the answer
+  reports coverage (transaction screening); account screening has none.
+- `ScreenResult::requestId()` and `ScreenOutcome::requestId()` return the
+  envelope's `requestId`, the HTTP request's id. The screening's id is
+  `ScreenResult::screeningRequestId()`.
+- `screenWallet()` returns `WalletScreenResult` (was `ScreenOutcome`); `$chain`
+  is optional. `screenPublicProcurementBan()` returns
+  `ProcurementBanScreenResult` (was the raw array).
+- A screening answer whose envelope `status` is not `success` throws
+  `ApiException` instead of being read.
+- `screeningHistory()`, `monitoringAlerts()`, `monitoredEntities()` and
+  `listBlacklist()` still return the rows of the first page; they accept
+  `cursor` (and `includeTotal`) and refuse an unknown filter.
+- `ScreenNameRequest::withThreshold()` refuses a value outside 0–100.
+
+### Removed (breaking)
+
+- `SanctionClient::syncProcurementBans()`. The gateway retired
+  `POST /api/v1/sanction/intelligence/public-procurement-ban/sync` (it could
+  write back a synthetic row); every call was a 404. Procurement-ban screening
+  reads the active list publication; there is no replacement call.
+
+## 0.22.0
+
+Bank transfers and currency exchange (`/api/v1/bank-connect`, product
+BANK_CONNECT, scope `bank-connect:transfer`). The API key must have an IP
+allowlist; calls from an unlisted IP are refused by the gateway.
+
+### Added
+
+- `BankConnectClient::transfers()` (`BankTransferClient`): `listPurposes()`,
+  `create(array $request, ?string $idempotencyKey = null)`, `list()` /
+  `iterate()`, `get()`. A transfer created with an API key is `SUBMITTED` at
+  once (no e-mail code) and queued for the bank.
+- `BankConnectClient::fx()` (`BankFxClient`): `listRates()`, `createQuote()`,
+  `createOrder(array $request, ?string $idempotencyKey = null)`,
+  `listOrders()` / `iterateOrders()`, `getOrder()`.
+- `Idempotency-Key`: a UUID v4 is generated when null; a key you pass is
+  checked (8–200 printable ASCII). A network error or a 5xx is retried with
+  the same key.
+- Bodies and filters are checked before sending against
+  `BankTransferRoutes::ROUTES` (the same table as the Node SDK's
+  `BANK_TRANSFER_ROUTES`).
+- Results `BankTransfer`, `BankTransferCreated`, `BankTransferPurpose`,
+  `BankFxRates`, `BankFxRate`, `BankFxQuote`, `BankFxOrder`,
+  `BankFxOrderCreated`; value sets `BankTransferStatus`, `BankTransferRail`,
+  `BankTransferInitiatedVia`, `BankFxOrderStatus`, `BankFxRequestedSide`;
+  webhooks `BankTransferEvents` + `BankTransferEvent::fromEvent()`.
+- `BankCapability::OUTGOING_TRANSFER`, `BankCapability::FX_EXCHANGE`.
+- `BankConnectConnection::capabilities()`, `supports()`;
+  `BankConnectAccount::productCode()`, `displayName()`, `accountType()`;
+  `BankConnectBalance::availableWithoutOverdraftMinor()`,
+  `overdraftAvailableMinor()`; `BankConnectTransaction::isReversal()`,
+  `reversalOfTransactionId()`, `counterpartyBankCode()`,
+  `counterpartyBankName()`.
+
+## 0.21.0
+
+Senetle Ödeme (promissory-note payment, `paymentMethod: PROMISSORY_NOTE`).
+Requires the gateway release that accepts the `promissoryNote` block; do not
+publish this version before it is live.
+
+### Added
+
+- `DirectMethodPaymentRequest::withMethodFields(PaymentMethod::PROMISSORY_NOTE, …)`
+  sends the `promissoryNote` block (debtor and guarantor fields from
+  `inputFields`). The plan: `withPromissoryNoteSchedule($rows)` or
+  `withPromissoryNoteCount($count)`, never both. Checked before sending:
+  integer minor-unit amounts adding up to `amount`, `YYYY-MM-DD` calendar dates
+  in ascending order, at most 24 rows, note count 1–24 (`PromissoryNotePlan`).
+- `CreateIntentRequest::withPromissoryNoteSchedule($rows)`: the plan shown on
+  the hosted form.
+- `PaymentClient::getPromissoryNotes()`, `cancelPromissoryNotes()`,
+  `downloadPromissoryNoteDocument()` (PDF); results `PromissoryNotes`,
+  `PromissoryNote`, `PromissoryNoteDocument`.
+- `LunixiClient::reference()` (`Reference\ReferenceClient`): `listProvinces()`,
+  `listDistricts()`, `listNeighborhoods()`.
+- `PromissoryNoteStatus`, `PromissoryNoteCancelResult` (with the Lunixi
+  `errorCode` values `ERROR_NOT_CANCELLABLE`, `ERROR_PROVIDER_UNAVAILABLE`,
+  `ERROR_CANCEL_REJECTED`), `PromissoryNoteEvents`,
+  webhook reader `PromissoryNoteEvent::fromEvent()`.
+- `MethodInputField::TYPE_VKN`, `TYPE_ADDRESS`, `TYPE_GROUP`; `requiredWhen()`,
+  `itemFields()`, `minItems()`, `maxItems()`.
+- `ApiClient::requestBinary()` option `accept`.
+
+### Changed
+
+- Method block and confirm `fields` values may be an associative array of
+  scalars (ADDRESS, at most 16 fields) or a list of at most 10 associative
+  arrays (GROUP), as the gateway accepts them. Field names `__proto__`,
+  `constructor` and `prototype` are refused, as the gateway does.
+- `PaymentMethod::METHOD_BLOCK_FIELDS` and `DIRECT_METHOD_PAYMENT_FIELDS`
+  include `promissoryNote`.
+
+## 0.20.0
+
+### Added
+
+- `Payment\ProviderSelectionMode` (`BUYER`, `PLATFORM`) and
+  `PaymentMethodInfo::providerSelectionMode()` (null when the response does not
+  carry the field). `BUYER`: the buyer picks the brand; with more than one
+  provider `providerCode` is required. `PLATFORM`: do not ask the buyer and
+  leave `providerCode` null; the platform picks a connected provider before any
+  money moves.
+- `PaymentClient::listPaymentMethods(?string $paymentMethod = null)` sends
+  `GET /api/v1/payments/methods?paymentMethod=<code>` and lists that method only
+  (empty when it is not open; `QR` is sent as `QR_CODE`). A code that is not
+  upper case throws `ConfigurationException` before sending; an unknown code is
+  a 400 `payment.method.unknown`. Without the argument the call is unchanged.
+- 422 `payment.provider.none_eligible` (`ApiException`) on
+  `directMethodPayment()`: a `PLATFORM` method without `providerCode` and no
+  connected provider could take the payment; nothing was charged
+  (`details.candidates[]`: `providerCode`, `outcome`, `reason`).
+
+### Changed
+
+- `ProviderSelection::OPTIONAL` also covers a `PLATFORM` method with more than
+  one provider connected. The value set is unchanged and
+  `requiresProviderCode()` still tells when `providerCode` must be sent.
+
+## 0.19.0
+
+### Removed (breaking)
+
+The gateway no longer has the `POST /api/v1/payments/direct/2d` and
+`/direct/3d` endpoints. A card is charged from the server only through
+`POST /api/v1/payments/direct/payment` with `paymentMethod: CARD`
+(`force3D: true` for 3D Secure).
+
+- `PaymentClient::chargeCard()`, `chargeCard2d()` and `chargeCard3d()` were removed.
+- `DirectPaymentRequest` stays: it is the base body of the marketplace split
+  charge (`MarketplaceClient::chargeMarketplaceCard2d()` / `3d()`,
+  `POST /api/v1/payments/marketplace/2d|3d`), which is unchanged.
+- `createIntent()`, `createMarketplaceIntent()`, the marketplace client,
+  `capture()`, `refund()` and `void()` are unchanged.
+
+### Migration
+
+```php
+// before
+$response = $lunixi->payments()->chargeCard3d(
+    (new DirectPaymentRequest($amount, 'TRY', $orderId, $card, $buyer, $billingAddress, $basketItems))
+        ->withInstallment(3, $quoteToken)
+        ->withCallbackUrl($callbackUrl),
+    $idempotencyKey
+);
+
+// after
+$result = $lunixi->payments()->directMethodPayment(
+    (new DirectMethodPaymentRequest($amount, 'TRY', $orderId))
+        ->withCard($card)                 // new card, or cardUserKey + cardToken for a stored card
+        ->withForce3D(true)               // leave out for chargeCard2d
+        ->withInstallment(3, $quoteToken)
+        ->withCallbackUrl($callbackUrl)
+        ->withBuyer($buyer)
+        ->withBillingAddress($billingAddress)
+        ->withBasketItems($basketItems),
+    $idempotencyKey
+);
+$redirectUrl = $result->action() !== null ? $result->action()->redirectUrl() : null;
+```
+
+- The result is a `MethodPaymentResult` (`paymentId()`, `status()`,
+  `action()`), not the raw array. For 3D Secure the gateway answers HTTP 202
+  with a `REDIRECT` action; send the buyer to `action()->redirectUrl()`. A
+  declined payment is HTTP 400 and throws `ApiException`.
+- `withPreauth`, `withDescription`, `withCustomerId`, `withPaymentChannel`,
+  `withPaymentGroup`, `withMetadata` keep their names.
+- A raw-array card body (`chargeCard(array …)`) has no replacement; build a
+  `DirectMethodPaymentRequest`.
+- Samples: `02-payments/direct-2d-payment.php` and `direct-3d-payment.php` were
+  replaced by `direct-method-card-payment.php`; `03-cards/charge-stored-card-2d.php`
+  uses `directMethodPayment()`.
+
+## 0.18.0
+
+### Breaking
+
+The gateway has one amount field: `amount`. `price` and `paidPrice` were removed
+from the intent, marketplace, direct 2D/3D and direct/payment bodies; a body that
+still sends them is answered with 400 `payment.amount.field_removed`. Use this
+version together with that gateway release: an older SDK sending `paidPrice` gets
+the same 400.
+
+- `Payment\DirectPaymentRequest::__construct(int $amount, …)`: the first argument
+  is now sent as `amount` (was `paidPrice`). `withPrice()` was removed. The
+  marketplace 2D/3D charge (`chargeMarketplaceCard2d()` / `3d()`) sends the same
+  body.
+- `Payment\DirectMethodPaymentRequest::__construct(int $amount, …)`: the first
+  argument is now sent as `amount` (was `paidPrice`, with `price` copied from it).
+  `withPrice()` was removed.
+- `Payment\CreateIntentRequest`: `withPrice()`, `withPaidPrice()` and
+  `withInstallment()` were removed. The intent has no installment field (the
+  gateway answers it with 400); the buyer picks the installment on the hosted
+  form.
+- `Payment\PaymentMethod::DIRECT_METHOD_PAYMENT_FIELDS` lists `amount` instead of
+  `price` and `paidPrice`.
+- A raw array with `price` or `paidPrice` given to `PaymentClient::chargeCard()`,
+  `PaymentClient::createMarketplaceIntent()` or
+  `MarketplaceClient::chargeMarketplaceCard()` throws `ConfigurationException`
+  before sending. A raw direct card array must carry `amount`.
+
+### Added
+
+- `PaymentClient::REMOVED_AMOUNT_FIELDS` (`['price', 'paidPrice']`).
+
+### Fixed
+
+- `MarketplaceClient::chargeMarketplaceCard()` documents the real body:
+  `amount` and `sellers[]{ subDealerId, amountMinor, scenario? }`.
+
+## 0.17.0
+
+Additive: no public class, method or constant was removed or changed.
+
+### Added
+
+- **Payment methods** — payments with any payment method from the merchant
+  server, besides the card endpoints:
+  - `PaymentClient::directMethodPayment(DirectMethodPaymentRequest, $idempotencyKey)`
+    — `POST /api/v1/payments/direct/payment`, Idempotency-Key required.
+  - `PaymentClient::confirmPaymentAction($paymentId, $actionId, PaymentActionConfirmRequest)`
+    and `resendPaymentAction($paymentId, $actionId)` — the action endpoint.
+  - `PaymentClient::listPaymentMethods()` — `GET /api/v1/payments/methods`,
+    returned as `PaymentMethodList` → `PaymentMethodInfo` →
+    `PaymentMethodProvider` → `MethodInputField`.
+  - `Payment\DirectMethodPaymentRequest`: `withMethodFields($method, $providerCode, $fields)`,
+    `withCard()`, `withForce3D()`, `withInstallment()`, `withPreauth()`,
+    `withCallbackUrl()` and the order fields of the direct 2D/3D body.
+  - `Payment\PaymentActionConfirmRequest`: `otp()`, `fields()`, `consent()`,
+    `withConsentAccepted()`.
+  - `Payment\MethodPaymentResult` and `Payment\PaymentAction` (OTP target,
+    consent, redirect URL, INPUT fields, buyer charge breakdown).
+  - `Payment\PaymentMethod` (codes, block names, DTO field lists),
+    `Payment\PaymentActionType`, `Payment\ProviderSelection`.
+  - `PaymentIntent::paymentMethod()` and `PaymentIntent::action()`.
+- Requests are checked before sending: card-only fields with another method, a
+  malformed method block, a method the gateway has no block for yet and a
+  missing Idempotency-Key throw `ConfigurationException`.
+- Samples `02-payments/list-payment-methods.php`,
+  `02-payments/mobile-billing-otp-payment.php`.
+
+### Unchanged
+
+- `chargeCard2d()`, `chargeCard3d()`, `createIntent()`, `capture()` and `void()`
+  keep their endpoints and behaviour.
+
+## 0.16.0
+
+### Added
+
+- **Pre-authorization as a typed field** — `withPreauth(bool $preauth)` on
+  `Payment\CreateIntentRequest` (hosted checkout and the marketplace intent) and
+  `Payment\DirectPaymentRequest` (direct 2D/3D and the marketplace 2D/3D charge).
+  `true` holds the amount and the payment becomes `AUTHORIZED`; take it with
+  `capture()` or release it with `void()`. The value goes into the body's
+  `preauth` field.
+- `MarketplaceClient::chargeMarketplaceCard2d()` / `chargeMarketplaceCard3d()` —
+  build the marketplace direct charge from a `DirectPaymentRequest` and
+  `MarketplaceSeller` legs, so `withPreauth()` reaches
+  `POST /api/v1/payments/marketplace/2d|3d` as well. The raw-array
+  `chargeMarketplaceCard()` stays.
+- A raw direct payload (`chargeCard()`, `chargeMarketplaceCard()`) whose `preauth`
+  is not a boolean is refused with `ConfigurationException` before anything is
+  sent.
+
+### Deprecated
+
+- `CreateIntentRequest::withAutoCapture(bool $autoCapture)`. It still works and
+  is now `withPreauth(!$autoCapture)`: it writes the typed `preauth` field and no
+  longer writes `metadata.autoCapture`. Your other `metadata` keys are left as
+  they are. Move to `withPreauth()`; the method will be removed in a later
+  release.
+
+### Upgrade note
+
+- Pre-authorization through the request `metadata` is no longer supported by
+  this SDK. If you build `metadata` with an `autoCapture` key yourself, replace
+  it with `withPreauth()`: `autoCapture: false` → `withPreauth(true)`.
+
+## 0.15.0
+
+### Added
+
+- **Basket item insurance fields**: `BasketItem` now copies `insuranceCategory`,
+  `insuranceTypes`, `insuranceEligible`, `insuranceValueAmount` and
+  `insuranceContext` (before this release it dropped them). They are optional
+  and accepted by `createIntent` (Checkout Form) only; direct 2D/3D payments
+  answer them with 400. They are checked before sending, the way the gateway
+  checks them: a category outside `InsuranceItemCategory`, `insuranceTypes`
+  that is not a list of at most 10 unique type codes, a non-boolean
+  `insuranceEligible`, an `insuranceValueAmount` below 1 or not an integer, an
+  `insuranceContext` that is not keyed by field name, or `insuranceTypes` /
+  `insuranceValueAmount` / `insuranceContext` without `insuranceCategory` is a
+  `ConfigurationException`. A null value or an empty `insuranceContext` is not
+  sent. An item without insurance fields is sent exactly as before.
+- `InsuranceItemCategory` constants (`TICKET`, `HOTEL`, `EVENT`, `DEVICE`,
+  `ELECTRONICS`, `VEHICLE`, `TRAVEL`, `HOME`, `HEALTH`, `ALL`) and
+  `BasketItem::ITEM_TYPES`, `BasketItem::INSURANCE_TYPE_PATTERN`,
+  `BasketItem::MAX_INSURANCE_TYPES`.
+
+### Changed
+
+- `BasketItem` rejects an `itemType` other than `PHYSICAL` or `VIRTUAL` with a
+  `ConfigurationException`. The gateway answers such a value with 400 on every
+  endpoint, so the request could not succeed before either.
+
+## 0.14.0
+
+Additive: no public class, method or constant was removed or changed, so `^0.13`
+constraints keep resolving and no integration needs a change.
+
+### Added
+
+- **Bank accounts** — `$lunixi->bankConnect()` (`BankConnect\BankConnectClient`)
+  for `/api/v1/bank-connect` (product BANK_CONNECT): read your connected bank
+  accounts, their balances and transactions.
+  - `listBanks()` / `iterateBanks()` — the catalogue, with `availability` and
+    `capabilities`.
+  - `listConnections()` / `iterateConnections()`, `getConnection($id)`.
+  - `listAccounts()` / `iterateAccounts()`, `getAccount($id)` — masked IBAN and
+    account number, and `freshness()` (`lastSuccessfulSyncAt`,
+    `nextSyncAvailableAt`, `minSyncIntervalSeconds`).
+  - `listBalances()` / `iterateBalances()` — the latest balance of each account.
+  - `listTransactions()` / `iterateTransactions()`, `getTransaction($id)` —
+    newest recorded first (`receivedAt`); filters `accountId`, `bookedFrom` /
+    `bookedTo` (at most 92 days apart), `direction`, `minAmountMinor` /
+    `maxAmountMinor`, `canonicalType`.
+  - `requestSync($accountId)` — asks for a fresh read (HTTP 202, `QUEUED` or
+    `SCHEDULED`); `BankConnectClient::retryAfterSeconds()` reads the wait from
+    a 429 `RATE_LIMITED`.
+  - Every call is signed per request (Ed25519), reads included. Scopes:
+    `bank-connect:view` (banks, connections, accounts, requestSync) and
+    `bank-connect:transactions:view` (balances, transactions).
+  - Filters are checked before anything is sent: an unknown filter, a value
+    outside its set, a limit outside 1–100, more than 100 account ids, a
+    negative or non-integer amount, `minAmountMinor` above `maxAmountMinor`,
+    `bookedTo` without `bookedFrom` or a window over 92 days is a
+    `ConfigurationException`.
+  - Results: `BankConnectPage`, `BankConnectBank`, `BankConnectBankRef`,
+    `BankConnectConnection`, `BankConnectAccount`, `BankConnectFreshness`,
+    `BankConnectBalance`, `BankConnectTransaction`, `BankConnectSyncRequest`.
+    A field the gateway leaves out reads as null; amounts are integers in
+    minor units.
+  - Constants: `BankConnectionStatus`, `BankAccountStatus`,
+    `BankTransactionDirection`, `BankTransactionType`, `BankAvailability`,
+    `BankCapability`, `BankSyncStatus`.
+- **`bank_account.transaction.received`** webhook: `BankConnectEvents` and
+  `BankAccountTransactionReceived::fromEvent($event)`.
+- Samples in `samples/09-bank-accounts/`.
+
 ## 0.13.0
 
 Additive: no public class, method or constant was removed or changed, so `^0.12`
