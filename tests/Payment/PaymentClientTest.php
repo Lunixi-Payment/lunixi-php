@@ -16,7 +16,7 @@ use Lunixi\Sdk\Payment\BasketItem;
 use Lunixi\Sdk\Payment\Buyer;
 use Lunixi\Sdk\Payment\CardDetails;
 use Lunixi\Sdk\Payment\CreateIntentRequest;
-use Lunixi\Sdk\Payment\DirectPaymentRequest;
+use Lunixi\Sdk\Payment\DirectMethodPaymentRequest;
 use Lunixi\Sdk\Payment\InstallmentOptionsRequest;
 use Lunixi\Sdk\Payment\PaymentClient;
 use Lunixi\Sdk\Payment\PaymentStatus;
@@ -44,26 +44,22 @@ final class PaymentClientTest extends TestCase
         return [new PaymentClient(new ApiClient($config, $signer, $tokens, $http)), $http];
     }
 
-    private function directRequest(): DirectPaymentRequest
+    private function cardRequest(): DirectMethodPaymentRequest
     {
-        return new DirectPaymentRequest(
-            1000,
-            'TRY',
-            'o1',
-            new CardDetails(['cardNumber' => '5400000000000004']),
-            new Buyer([
+        return (new DirectMethodPaymentRequest(1000, 'TRY', 'o1'))
+            ->withCard(new CardDetails(['cardNumber' => '5400000000000004']))
+            ->withBuyer(new Buyer([
                 'name' => 'Ada', 'surname' => 'L', 'identityNumber' => '11111111111',
                 'email' => 'a@b.co', 'gsmNumber' => '+90555', 'city' => 'Istanbul',
                 'country' => 'TR', 'zipCode' => '34000', 'ip' => '1.2.3.4',
-            ]),
-            new Address([
+            ]))
+            ->withBillingAddress(new Address([
                 'address' => 'Street 1', 'zipCode' => '34000', 'contactName' => 'Ada',
                 'city' => 'Istanbul', 'country' => 'TR',
-            ]),
-            [
+            ]))
+            ->withBasketItems([
                 new BasketItem(['id' => 'i1', 'price' => 1000, 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => BasketItem::TYPE_PHYSICAL]),
-            ]
-        );
+            ]);
     }
 
     public function testCreateIntentSendsStepUpBodyAndReturnsToken(): void
@@ -72,7 +68,6 @@ final class PaymentClientTest extends TestCase
         $http->pushJson(201, ['success' => true, 'code' => 'OK', 'paymentId' => 'pi_1', 'token' => 'tok_1', 'checkoutFormContent' => '']);
 
         $request = (new CreateIntentRequest(1000, 'try', 'WC-1042'))
-            ->withInstallment(3)
             ->withCallbackUrl('https://shop/cb');
         $intent = $payments->createIntent($request);
 
@@ -87,7 +82,7 @@ final class PaymentClientTest extends TestCase
         $this->assertSame(1000, $body['amount']);
         $this->assertSame('TRY', $body['currency']);
         $this->assertSame('WC-1042', $body['orderId']);
-        $this->assertSame(3, $body['installment']);
+        $this->assertArrayNotHasKey('installment', $body); // intent has no installment field (gateway: 400)
         $this->assertSame('https://shop/cb', $body['callbackUrl']);
     }
 
@@ -198,59 +193,35 @@ final class PaymentClientTest extends TestCase
         $this->assertStringContainsString('limit=20', $http->lastCall()['url']);
     }
 
-    public function testChargeCardDirectIsStepUpSigned(): void
+    public function testCardDirectPaymentIsStepUpSignedAndGoesToDirectPayment(): void
     {
         [$payments, $http] = $this->make();
-        $http->pushJson(200, ['success' => true, 'data' => ['paymentId' => 'pi_d']]);
+        $http->pushJson(202, ['status' => 'success', 'data' => ['paymentId' => 'pi_d', 'status' => 'PENDING']]);
 
-        $payments->chargeCard($this->directRequest()->toArray(), true, 'idem-direct-raw');
+        $payments->directMethodPayment($this->cardRequest()->withForce3D(true), 'idem-card-3d');
 
         $call = $http->lastCall();
         $this->assertSame('POST', $call['method']);
-        $this->assertStringEndsWith('/api/v1/payments/direct/3d', $call['url']);
-        $this->assertArrayHasKey('X-Signature', $call['headers'], 'direct charge must be step-up signed');
-        $this->assertSame('idem-direct-raw', $call['headers']['Idempotency-Key']);
-    }
-
-    public function testRawDirectChargeRequiresBusinessContext(): void
-    {
-        [$payments] = $this->make();
-
-        $this->expectException(ConfigurationException::class);
-        $payments->chargeCard([
-            'paidPrice' => 1000,
-            'currency' => 'TRY',
-            'orderId' => 'o1',
-            'card' => ['cardNumber' => '5400000000000004'],
-        ], true, 'idem-direct-missing-context');
-    }
-
-    public function testDirectChargeRequiresIdempotencyKey(): void
-    {
-        [$payments] = $this->make();
-
-        $this->expectException(ConfigurationException::class);
-        $payments->chargeCard3d($this->directRequest());
-    }
-
-    public function testTypedDirectPaymentRequestUsesDirect3dRoute(): void
-    {
-        [$payments, $http] = $this->make();
-        $http->pushJson(200, ['success' => true, 'data' => ['id' => 'pi_d', 'status' => 'AWAITING_3D']]);
-
-        $payments->chargeCard3d(
-            $this->directRequest(),
-            'idem-direct-3d'
-        );
-
-        $call = $http->lastCall();
-        $this->assertStringEndsWith('/api/v1/payments/direct/3d', $call['url']);
-        $this->assertSame('idem-direct-3d', $call['headers']['Idempotency-Key']);
+        $this->assertStringEndsWith('/api/v1/payments/direct/payment', $call['url']);
+        $this->assertArrayHasKey('X-Signature', $call['headers'], 'a card charge must be step-up signed');
+        $this->assertSame('idem-card-3d', $call['headers']['Idempotency-Key']);
         $body = json_decode((string) $call['body'], true);
-        $this->assertSame(1000, $body['paidPrice']);
+        $this->assertSame('CARD', $body['paymentMethod']);
+        $this->assertTrue($body['force3D']);
+        $this->assertSame(1000, $body['amount']);
+        $this->assertArrayNotHasKey('paidPrice', $body);
         $this->assertSame('TRY', $body['currency']);
+        $this->assertSame('5400000000000004', $body['card']['cardNumber']);
         $this->assertSame('Ada', $body['buyer']['name']);
         $this->assertSame('Widget', $body['basketItems'][0]['name']);
+    }
+
+    public function testCardDirectPaymentRequiresIdempotencyKey(): void
+    {
+        [$payments] = $this->make();
+
+        $this->expectException(ConfigurationException::class);
+        $payments->directMethodPayment($this->cardRequest());
     }
 
     public function testBinInstallmentsAndStoredCardRoutes(): void
