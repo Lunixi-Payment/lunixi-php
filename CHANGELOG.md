@@ -2,6 +2,12 @@
 
 All notable changes to `lunixi/php-sdk`.
 
+## 0.29.2
+
+### Fixed
+
+- Fence uncertain financial retries at 23 hours, before the gateway HTTP idempotency cache's 24-hour retention. Persist operation creation time; missing or future timestamps fail closed. Authenticated GET reconciliation and confirmed-operation reads remain available; expired attempts never rotate their key automatically.
+
 ## 0.29.1
 
 ### Fixed

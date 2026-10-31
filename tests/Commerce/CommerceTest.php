@@ -153,6 +153,35 @@ final class CommerceTest extends TestCase
         try { $store->transaction('123', function () use ($store) { $store->claimEvent('merchant-1', 'evt-1', hash('sha256', 'different')); }); self::fail('Accepted colliding event content.'); }
         catch (\RuntimeException $expected) { self::assertSame(1, (int) $db->query('SELECT COUNT(*) FROM lunixi_events')->fetchColumn()); }
     }
+    public function testExpiredUnknownCreateNeverMakesAnotherFinancialRequest(): void
+    {
+        [$service, $http, $store] = $this->service();
+        $http->push(new \RuntimeException('Lost create response'));
+        try { $service->start('123', $this->order(), 'https://shop.example/return'); self::fail('Expected timeout.'); } catch (\RuntimeException $expected) {}
+        $store->transaction('123', function () use ($store): void { $r = $store->load('123'); $r['createdAt'] = time() - 23 * 3600; $store->save('123', $r); });
+        $count = count($http->calls);
+        try { $service->start('123', $this->order(), 'https://shop.example/return'); self::fail('Replayed beyond retention.'); }
+        catch (\RuntimeException $expected) { self::assertStringContainsString('replay window', $expected->getMessage()); }
+        self::assertCount($count, $http->calls);
+    }
+    public function testExpiredOrMissingOperationTimestampAllowsOnlyAuthenticatedReconciliation(): void
+    {
+        [$service, $http, $store] = $this->service();
+        $http->pushJson(201, ['data' => ['paymentId' => 'pi-1', 'token' => 'browser-token']]);
+        $service->start('123', $this->order(), 'https://shop.example/return');
+        $http->pushJson(200, $this->payment()); $http->push(new \RuntimeException('Lost refund response'));
+        try { $service->mutate('123', 'refund-stable', 'refund', 990, static function (): void {}); self::fail('Expected timeout.'); } catch (\RuntimeException $expected) {}
+        foreach ([time() - 23 * 3600, null, time() + 60] as $timestamp) {
+            $store->transaction('123', function () use ($store, $timestamp): void { $r = $store->load('123'); $r['operations'][hash('sha256', 'refund-stable')]['createdAt'] = $timestamp; $store->save('123', $r); });
+            $count = count($http->calls);
+            try { $service->mutate('123', 'refund-stable', 'refund', 990, static function (): void {}); self::fail('Replayed beyond retention.'); }
+            catch (\RuntimeException $expected) { self::assertStringContainsString('replay window', $expected->getMessage()); }
+            self::assertCount($count, $http->calls);
+        }
+        $p = $this->payment('PARTIALLY_REFUNDED'); $p['details'] = ['capturedAmount' => '1990', 'refundedAmount' => '990'];
+        $http->pushJson(200, $p); $service->reconcile('123', static function (): void {});
+        self::assertSame('confirmed', $service->operationStatus('123', 'refund-stable')['state']);
+    }
     public function testRefundTimeoutReusesPersistedOperationKeyAndReconcilesActualBalance(): void
     {
         [$service, $http] = $this->service();

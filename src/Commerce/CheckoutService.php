@@ -55,6 +55,7 @@ final class CheckoutService
         $metadata['lunixiCommerce']['attempt'] = hash('sha256', $record['key']);
         $request->withMetadata($metadata);
         // No automatic key rotation on timeout, 5xx, unknown or malformed response.
+        self::assertReplayWindow($record['createdAt'] ?? null);
         $intent = $this->client->payments()->createIntent($request, $record['key']);
         if ($intent->paymentId() === '' || $intent->token() === '') { throw new \RuntimeException('Checkout result is uncertain; retry this reserved attempt.'); }
         $this->store->transaction($orderKey, function () use ($orderKey, $record, $intent): void {
@@ -149,7 +150,7 @@ final class CheckoutService
                 foreach ($current['operations'] ?? [] as $other) {
                     if (($other['state'] ?? '') !== 'confirmed') { throw new \RuntimeException('Reconcile or retry the unresolved operation before starting another mutation.'); }
                 }
-                $op = ['action' => $action, 'amount' => $amount, 'key' => 'lunixi-op-' . bin2hex(random_bytes(24)), 'splitId' => $e->splitId, 'initialCaptured' => $e->capturedAmount, 'initialRefunded' => $e->refundedAmount, 'state' => 'pending'];
+                $op = ['action' => $action, 'amount' => $amount, 'key' => 'lunixi-op-' . bin2hex(random_bytes(24)), 'splitId' => $e->splitId, 'initialCaptured' => $e->capturedAmount, 'initialRefunded' => $e->refundedAmount, 'state' => 'pending', 'createdAt' => time()];
                 $current['operations'][$opId] = $op;
                 $this->store->save($orderKey, $current);
                 return $op;
@@ -157,6 +158,7 @@ final class CheckoutService
         }
         try {
             if ($existing['state'] !== 'confirmed') {
+                self::assertReplayWindow($existing['createdAt'] ?? null);
                 if ($action === 'refund') {
                     if ($amount === null) { throw new \LogicException('Refund amount is required.'); }
                     if ($existing['splitId'] !== null) { $this->client->payments()->refundSplitPayment($existing['splitId'], $amount, 'Commerce refund', $existing['key']); }
@@ -190,6 +192,17 @@ final class CheckoutService
             unset($op['key']);
             return $op;
         });
+    }
+
+    /**
+     * The gateway HTTP replay cache lasts 24h; stop earlier and reconcile instead.
+     * @param mixed $createdAt Persisted records may predate the timestamp field.
+     */
+    private static function assertReplayWindow($createdAt): void
+    {
+        if (!is_int($createdAt) || $createdAt > time() || time() - $createdAt >= 23 * 3600) {
+            throw new \RuntimeException('Financial replay window expired or unknown; use authenticated reconciliation and operator review, never a new operation key.');
+        }
     }
 
     /**
