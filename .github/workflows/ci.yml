@@ -31,6 +31,18 @@ jobs:
   tests:
     name: Tests (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_DATABASE: lunixi_test
+          MARIADB_USER: lunixi_test
+          MARIADB_PASSWORD: fixture-only
+          MARIADB_ROOT_PASSWORD: fixture-root-only
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
     strategy:
       fail-fast: false
       matrix:
@@ -40,10 +52,15 @@ jobs:
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: ${{ matrix.php }}
-          extensions: sodium, curl, json, bcmath, pdo_sqlite
+          extensions: sodium, curl, json, bcmath, pdo_sqlite, pdo_mysql
           coverage: none
       - run: composer validate --strict --no-check-lock
       - run: composer install --no-progress --prefer-dist
+      - name: Configure disposable database
+        run: |
+          php -r 'file_put_contents("/tmp/lunixi-php-test-db.json", json_encode(["database"=>"lunixi_test","host"=>"127.0.0.1","port"=>3306,"username"=>"lunixi_test","password"=>"fixture-only"])); chmod("/tmp/lunixi-php-test-db.json",0600);'
       - run: vendor/bin/phpunit
+        env:
+          LUNIXI_TEST_DB_FILE: /tmp/lunixi-php-test-db.json
       - run: vendor/bin/phpstan analyse src/Commerce --level=8 --no-progress
       - run: composer audit

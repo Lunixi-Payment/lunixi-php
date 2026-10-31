@@ -35,8 +35,13 @@ final class PdoLedgerStore implements LedgerStore
         $this->activeKey = $orderKey;
         try {
             if ($this->driver === 'sqlite') { $this->db->exec('BEGIN IMMEDIATE'); } else { $this->db->beginTransaction(); }
-            $sql = $this->driver === 'mysql' ? 'INSERT IGNORE INTO ' : 'INSERT OR IGNORE INTO ';
-            $this->db->prepare($sql . $this->prefix . 'attempts (order_key, payload) VALUES (?, NULL)')->execute([$orderKey]);
+            // Acquire an exclusive lock even when the reservation already exists.
+            // INSERT IGNORE would take a shared duplicate-key lock, whose later
+            // FOR UPDATE upgrade deadlocks when webhook consumers arrive together.
+            $sql = $this->driver === 'mysql'
+                ? 'INSERT INTO ' . $this->prefix . 'attempts (order_key, payload) VALUES (?, NULL) ON DUPLICATE KEY UPDATE order_key = VALUES(order_key)'
+                : 'INSERT OR IGNORE INTO ' . $this->prefix . 'attempts (order_key, payload) VALUES (?, NULL)';
+            $this->db->prepare($sql)->execute([$orderKey]);
             if ($this->driver === 'mysql') {
                 $lock = $this->db->prepare('SELECT order_key FROM ' . $this->prefix . 'attempts WHERE order_key = ? FOR UPDATE');
                 $lock->execute([$orderKey]); $lock->fetchColumn();

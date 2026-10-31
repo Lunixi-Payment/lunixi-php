@@ -2,6 +2,12 @@
 
 All notable changes to `lunixi/php-sdk`.
 
+## 0.29.1
+
+### Fixed
+
+- Acquire an exclusive MySQL/InnoDB reservation lock before reading an existing attempt. Concurrent webhook consumers no longer deadlock while upgrading duplicate-key shared locks. Includes a multi-process MariaDB regression and native-write rollback checks; the ledger API is unchanged.
+
 ## 0.29.0
 
 ### Added
