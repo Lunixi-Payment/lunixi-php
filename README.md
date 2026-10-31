@@ -16,7 +16,7 @@ Native commerce adapters can share durable checkout, webhook, capture and refund
 **[Documentation](https://docs.lunixi.com/sdks/php) · [Changelog](https://github.com/Lunixi-Payment/lunixi-php/blob/main/CHANGELOG.md) · [Issues](https://github.com/Lunixi-Payment/lunixi-php/issues) · [Security](https://github.com/Lunixi-Payment/lunixi-php/blob/main/SECURITY.md)**
 
 Framework-agnostic PHP client for the Lunixi payment gateway. Used standalone
-(`composer require "lunixi/php-sdk:^0.29.5"`) or bundled — namespace-scoped via PHP-Scoper —
+(`composer require "lunixi/php-sdk:^0.29.6"`) or bundled — namespace-scoped via PHP-Scoper —
 inside the WordPress/WooCommerce, OpenCart and other Lunixi integrations. For
 Laravel use [`lunixi/laravel`](https://github.com/Lunixi-Payment/lunixi-laravel#readme), which builds on this SDK.
 
@@ -26,9 +26,10 @@ adapters over this SDK.
 - **Requires:** PHP 7.4+, `ext-sodium`, `ext-curl`, `ext-json`
 - **License:** MIT
 
-**0.29.5 is published on [Packagist](https://packagist.org/packages/lunixi/php-sdk#0.29.5).**
-This release includes the validated backend `paymentPageUrl` contract for
-optional redirects; the merchant-site Lunixi form remains the default.
+**Current source version: 0.29.6.** Check [Packagist](https://packagist.org/packages/lunixi/php-sdk#0.29.6) for registry availability.
+This patch keeps payment responses working under strict PHP 8.5 error handlers.
+The validated backend `paymentPageUrl` contract and merchant-site Lunixi form
+remain available.
 
 
 ## Native framework integrations

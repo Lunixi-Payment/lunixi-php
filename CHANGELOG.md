@@ -2,6 +2,11 @@
 
 All notable changes to `lunixi/php-sdk`.
 
+## 0.29.6
+
+- Release cURL handles through local scope on both successful and failed requests. PHP 8.5 strict platform error handlers no longer interrupt payment response handling through the deprecated `curl_close()` no-op. PHP 7.4 compatibility, TLS checks, timeout/error handling and redirect refusal remain unchanged.
+- Add real TLS transport regressions with `E_ALL` converted to exceptions for success, redirect and connection failure.
+
 ## 0.29.5
 
 - Expose the authenticated backend's optional `paymentPageUrl` for redirect checkout; never derive it from the embedded form token. Validate the fixed HTTPS payment origin and opaque path to reject open redirects.

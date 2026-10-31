@@ -55,12 +55,12 @@ final class CurlHttpClient implements HttpClientInterface
         if ($rawBody === false) {
             $error = curl_error($ch);
             $errno = curl_errno($ch);
-            curl_close($ch);
             throw new ApiException("HTTP transport error ({$errno}): {$error}");
         }
 
         $statusCode = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-        curl_close($ch);
+        // Local scope releases the resource (PHP 7.4) / CurlHandle (PHP 8+).
+        // Explicit curl_close() is a no-op on PHP 8 and deprecated on PHP 8.5.
 
         return new HttpResponse($statusCode, $responseHeaders, (string) $rawBody);
     }
