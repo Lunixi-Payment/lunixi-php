@@ -81,7 +81,7 @@ final class CheckoutService
         $p = $response['data'] ?? $response;
         $split = is_array($p['split'] ?? null) ? $this->client->payments()->getSplitPayment($p['split']['splitPaymentId'])->raw() : null;
         $decision = PaymentEvidence::evaluate(OrderSnapshot::fromArray($r['snapshot']), $r['paymentId'], $response, $split);
-        if ($decision->state !== 'failed') { throw new \RuntimeException('The previous payment has not reached a verified terminal failure.'); }
+        if ($decision->state !== 'failed' || !in_array($decision->gatewayStatus, ['VOIDED', 'EXPIRED'], true) || $decision->capturedAmount !== 0 || $decision->refundedAmount !== 0 || $decision->splitId !== null) { throw new \RuntimeException('The previous payment has not reached a verified terminal failure.'); }
         $this->store->transaction($orderKey, function () use ($orderKey, $r): void {
             $current = $this->store->load($orderKey);
             if ($current === null || $current['key'] !== $r['key'] || ($current['capturedAmount'] ?? 0) > 0 || in_array($current['state'], ['paid', 'partially_refunded', 'refunded'], true)) { throw new \RuntimeException('Attempt changed while checking failure.'); }

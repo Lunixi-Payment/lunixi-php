@@ -41,7 +41,7 @@ final class PaymentEvidence
             $refunded = Money::integer($s['refund']['refundedAmount'] ?? 0);
             $state = 'pending';
             if ($status === 'SETTLED_BY_SPLIT' && ($s['status'] ?? '') === 'COMPLETED' && $captured === $amount && $compensated === 0) { $state = $refunded === 0 ? 'paid' : ($refunded === $amount ? 'refunded' : 'partially_refunded'); }
-            if (in_array($s['status'] ?? '', ['FAILED', 'VOIDED'], true) && $captured === $compensated && Money::integer($a['authorizedAmount'] ?? null) === 0) { $state = 'failed'; }
+            if (($s['status'] ?? '') === 'VOIDED' && $captured === 0 && $compensated === 0 && Money::integer($a['authorizedAmount'] ?? null) === 0) { $state = 'failed'; }
             if ($refunded > $captured) { throw new \RuntimeException('Invalid split refund balance.'); }
             return new PaymentDecision($state, $paymentId, $amount, $refunded, $ref['splitPaymentId'], $captured, $status);
         }
@@ -55,7 +55,9 @@ final class PaymentEvidence
         elseif ($status === 'AUTHORIZED' && $captured === 0 && $refunded === 0) { $state = 'authorized'; }
         elseif ($status === 'REFUNDED' && $captured > 0 && $captured === $refunded) { $state = 'refunded'; }
         elseif ($status === 'PARTIALLY_REFUNDED' && $refunded > 0 && $refunded < $captured) { $state = 'partially_refunded'; }
-        elseif (in_array($status, ['FAILED', 'EXPIRED', 'VOIDED'], true) && $captured === 0) { $state = 'failed'; }
+        // FAILED alone does not prove definitive provider failure. The public
+        // GET omits outcome certainty, so unknown/legacy failures stay on hold.
+        elseif (in_array($status, ['EXPIRED', 'VOIDED'], true) && $captured === 0) { $state = 'failed'; }
         elseif (in_array($status, ['INITIATED', 'PROCESSING', 'AWAITING_3D'], true) && $captured === 0) { $state = 'pending'; }
         return new PaymentDecision($state, $paymentId, $amount, $refunded, null, $captured, $status);
     }

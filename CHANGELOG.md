@@ -2,6 +2,12 @@
 
 All notable changes to `lunixi/php-sdk`.
 
+## 0.29.3
+
+### Fixed
+
+- Keep `FAILED` payments in review: the public payment read does not provide definitive provider outcome certainty. Never rotate a payment key from `FAILED` alone. The explicit reset requires an authenticated `VOIDED`/`EXPIRED` nonsplit intent with zero captured/refunded funds; compensated split history remains under review.
+
 ## 0.29.2
 
 ### Fixed

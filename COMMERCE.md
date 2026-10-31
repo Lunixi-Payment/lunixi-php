@@ -27,6 +27,8 @@ $session = $service->start('store:order:123', $order, 'https://shop.example/luni
 
 Uncertain create and financial operation retries stop after 23 hours, before the gateway's 24-hour HTTP replay-cache retention. The original key and financial history remain stored. Missing/future operation timestamps also fail closed. Continue with authenticated GET reconciliation and reviewed recovery; never generate a new key to bypass this fence. A confirmed operation can still be read/reconciled. Keep clocks synchronized.
 
+`FAILED` alone stays in review because the public payment GET does not expose definitive provider outcome certainty. Do not release fulfillment or create a new attempt from that status alone. `resetFailedAttempt` only resets an authenticated nonsplit `VOIDED`/`EXPIRED` intent with zero captured/refunded funds. A compensated split does not authorize a fresh attempt automatically.
+
 For embedded checkout, load only the fixed official bundle `https://cdn.lunixi.com/lunixi-checkout.min.js`, provide an element with id `lunixi-checkout-form`, and pass the JSON from `$session->browserConfig()` to `Lunixi.checkout.create`. Call `checkout.mount('#lunixi-checkout-form')`. Use the platform's asset and script APIs; preserve CSP nonces where required. Do not print `checkoutFormContent` as HTML. Only a browser token is sent to the client; merchant secrets remain on the server.
 
 For hosted checkout, pass `true` as the fourth argument to `start` and redirect to `$session->hostedUrl()`. The service binds the form to `https://pay.lunixi.com`. Always verify order ownership before showing a token or redirecting. The form's available methods are managed in Lunixi; no duplicate payment-method switches are necessary in the plugin.

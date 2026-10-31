@@ -265,6 +265,9 @@ final class CommerceTest extends TestCase
         $unchanged = $store->transaction('123', function () use ($store) { return $store->load('123'); });
         self::assertSame($first['key'], $unchanged['key']);
         $http->pushJson(200, $this->payment('FAILED'));
+        try { $service->resetFailedAttempt('123'); self::fail('FAILED alone is not definitive provider outcome evidence.'); } catch (\RuntimeException $expected) {}
+        self::assertSame('review', PaymentEvidence::evaluate($this->order(), 'pi-1', $this->payment('FAILED'))->state);
+        $http->pushJson(200, $this->payment('VOIDED'));
         $service->resetFailedAttempt('123');
         $next = $store->transaction('123', function () use ($store) { return $store->load('123'); });
         self::assertNotSame($first['key'], $next['key']);
