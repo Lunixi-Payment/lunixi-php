@@ -25,7 +25,8 @@ final class Payments extends BaseController
             $order = $service->order($id, session()->get('user_id'));
             $this->response->setHeader('Cache-Control', 'no-store')->setHeader('Referrer-Policy', 'no-referrer');
             if ($order['mode'] === 'hosted') {
-                return redirect()->to($session->hostedUrl())->setStatusCode(303);
+                return redirect()->to($session->hostedUrl())->setStatusCode(303)
+                    ->setHeader('Cache-Control', 'no-store')->setHeader('Referrer-Policy', 'no-referrer');
             }
             return $this->response->setBody(view('checkout', ['config' => $session->browserConfig()]));
         } catch (\DomainException $error) {

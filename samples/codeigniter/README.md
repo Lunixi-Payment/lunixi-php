@@ -4,7 +4,7 @@
 
 [English](README.md) · [Türkçe](README.tr.md) · [Guide](https://docs.lunixi.com/en/sdks/codeigniter) · [Source](https://github.com/Lunixi-Payment/lunixi-php/tree/main/samples/codeigniter)
 
-A runnable **CodeIgniter 4.7.5 / PHP 8.2+** application using **`lunixi/php-sdk:^0.29.3`**. It has native session login, CSRF-protected owned-order checkout, hosted or embedded Lunixi form, a raw signed webhook endpoint, native SQLite transactions and an encrypted durable payment outbox. It is a framework example inside the existing PHP SDK repository, not a separate package/bundle.
+A runnable **CodeIgniter 4.7.5 / PHP 8.2+** application using **`lunixi/php-sdk:^0.29.5`**. It has native session login, CSRF-protected owned-order checkout, hosted or embedded Lunixi form, a raw signed webhook endpoint, native SQLite transactions and an encrypted durable payment outbox. It is a framework example inside the existing PHP SDK repository, not a separate package/bundle.
 
 The two explicit demo accounts each own a server-side 19.90 TRY order. No browser amount is accepted, no raw card data is collected and no API/mock payment is enabled automatically. Payment methods, split cards, installments and insurance stay managed in Lunixi's form settings. The shared SDK owns signing, payment evidence, split settlement, token encryption and safe retry rules.
 
@@ -28,7 +28,7 @@ Edit this example's **own** ignored `.env` (it does not load a parent sample's e
 | `LUNIXI_WEBHOOK_SECRET` | Merchant webhook secret |
 | `LUNIXI_ENCRYPTION_KEY` | Independent base64-encoded 32-byte key generated above |
 | `LUNIXI_APP_URL` | Your public **HTTPS** base URL for return/webhook registration |
-| `LUNIXI_CHECKOUT_MODE` | `hosted` (default) or `embedded` |
+| `LUNIXI_CHECKOUT_MODE` | `embedded` (default) or optional `hosted` |
 | `LUNIXI_PREAUTH` | `true` to authorize first; otherwise `false` |
 | `DEMO_ALICE_PASSWORD`, `DEMO_BOB_PASSWORD` | Explicit strong passwords, at least 16 characters each |
 
@@ -57,7 +57,7 @@ Use a TLS tunnel or an HTTPS server for real TEST checkout, set `app.baseURL` an
 
 The exact webhook POST and informational return POST are the only CSRF exemptions. The return adapter accepts at most 64 KiB, ignores every submitted field and performs no session/order lookup, database write or gateway call. It redirects even for an unknown order without disclosing it. A cross-site form POST can omit SameSite=Lax cookies; its fixed 303 allows the following GET to use the normal authenticated session and ownership check. Return form signatures are not verified with the webhook secret. Apply request-body limits at the reverse proxy too; PHP may buffer input before the application check.
 
-Auto-routing is disabled. The gateway origin is fixed at `https://api-gateway.lunixi.com`; the actual key selects TEST/LIVE access, without an invented environment request parameter. Hosted redirects use `https://pay.lunixi.com/payment/<token>`. Embedded mode mounts browser-safe JSON using only the official `https://cdn.lunixi.com/lunixi-checkout.min.js`; it never renders gateway HTML. Permit the documented form origins in your CSP.
+Auto-routing is disabled. The gateway origin is fixed at `https://api-gateway.lunixi.com`; the actual key selects TEST/LIVE access, without an invented environment request parameter. The default embedded mode opens the form on your own website. Optional hosted mode redirects to the exact validated `paymentPageUrl` returned by the backend and encrypted in the durable attempt; it never builds a URL from the browser token. Embedded mode mounts browser-safe JSON using only the official `https://cdn.lunixi.com/lunixi-checkout.min.js`; it never renders gateway HTML. Permit the documented form origins in your CSP.
 
 The native order stores immutable merchant/environment/base amount/currency/form settings. The SDK reserves a stable attempt before network I/O and encrypts browser tokens with SecretBox. A timeout reuses the same request/key; unknown older attempts are **never rotated automatically**. The gateway's idempotency cache is 24 hours; SDK 0.29.3 uses a conservative **23-hour replay fence**. Expired uncertain attempts require authenticated GET/webhook reconciliation, with no new financial POST. Raw signed opaque attempt metadata can recover a lost create response.
 
@@ -89,7 +89,7 @@ php vendor/bin/phpcs --standard=phpcs.xml
 composer audit
 ```
 
-The suite boots actual CodeIgniter routing, security and native SQLite. The HTTP smoke starts an isolated real PHP/CodeIgniter server, creates disposable accounts/database, verifies native cookie/session rotation, missing CSRF, ownership, verb rejection, anonymous cross-site callback POST → 303 → protected GET and forged return without sending a gateway payment request. SDK tests inject deterministic HTTP transport while preserving actual cryptography/native persistence; no live Lunixi transaction is created. Tests cover SQL-trigger rollback/retry, replay/tamper/environment, exact money, stable lost-response keys, signed recovery, 24h retention fence and FAILED review.
+The suite boots actual CodeIgniter routing, security and native SQLite. The HTTP smoke starts an isolated real PHP/CodeIgniter server, creates disposable accounts/database, verifies native cookie/session rotation, missing CSRF, ownership, verb rejection, anonymous cross-site callback POST → 303 → protected GET and forged return. Offline-cached hosted and embedded attempts also verify the actual `no-store`, `no-referrer` and native security headers; no gateway payment request is sent. The application's SecureHeaders subclass retains the framework protections and overrides only its default referrer policy. SDK tests inject deterministic HTTP transport while preserving actual cryptography/native persistence; no live Lunixi transaction is created. Tests cover SQL-trigger rollback/retry, replay/tamper/environment, exact money, stable lost-response keys, signed recovery, 24h retention fence and FAILED review.
 
 Before deployment complete a registered TEST-merchant hosted/embedded checkout and genuine signed webhook on your HTTPS application. Full commerce fulfillment, your production identity system and remote side effects remain application responsibilities. See the SDK [security policy](../../SECURITY.md).
 

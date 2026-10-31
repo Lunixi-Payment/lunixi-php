@@ -51,7 +51,7 @@ final class CheckoutTest extends TestCase
     public function testNativeOwnerCsrfPostStartsHostedCheckoutWithEncryptedToken():void
     {
         $response=$this->request('POST','payments/1',$this->csrf(),1);
-        self::assertSame(303,$response->statusCode);self::assertStringStartsWith('https://pay.lunixi.com/payment/',$response->headers->get('Location'));
+        self::assertSame(303,$response->statusCode);self::assertSame('https://pay.lunixi.com/payment/backend-page-pi-1',$response->headers->get('Location'));
         self::assertStringNotContainsString('fixture-browser-token',$this->db->one('SELECT payload FROM lunixi_attempts')['payload']);self::assertSame(1990,$this->http->payments['pi-1']['data']['amount']);
     }
     public function testNativeOwnerAndVerbGatesBeforePaymentNetwork():void

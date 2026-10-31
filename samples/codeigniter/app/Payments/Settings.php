@@ -14,7 +14,7 @@ final class Settings
         public readonly string $webhookSecret,
         public readonly string $encryptionKey,
         public readonly string $baseUrl,
-        public readonly string $mode = 'hosted',
+        public readonly string $mode = 'embedded',
         public readonly bool $preauth = false,
     ) {
         if ($merchantId === '' || !in_array($environment, ['TEST', 'LIVE'], true) || !in_array($mode, ['hosted', 'embedded'], true)) {
@@ -31,6 +31,6 @@ final class Settings
     public static function fromEnvironment(): self
     {
         $key = base64_decode((string) getenv('LUNIXI_ENCRYPTION_KEY'), true);
-        return new self((string) getenv('LUNIXI_MERCHANT_ID'), (string) getenv('LUNIXI_ENVIRONMENT'), (string) getenv('LUNIXI_KEY_ID'), (string) getenv('LUNIXI_PRIVATE_KEY'), (string) getenv('LUNIXI_WEBHOOK_SECRET'), $key === false ? '' : $key, rtrim((string) getenv('LUNIXI_APP_URL'), '/'), getenv('LUNIXI_CHECKOUT_MODE') ?: 'hosted', getenv('LUNIXI_PREAUTH') === 'true');
+        return new self((string) getenv('LUNIXI_MERCHANT_ID'), (string) getenv('LUNIXI_ENVIRONMENT'), (string) getenv('LUNIXI_KEY_ID'), (string) getenv('LUNIXI_PRIVATE_KEY'), (string) getenv('LUNIXI_WEBHOOK_SECRET'), $key === false ? '' : $key, rtrim((string) getenv('LUNIXI_APP_URL'), '/'), getenv('LUNIXI_CHECKOUT_MODE') ?: 'embedded', getenv('LUNIXI_PREAUTH') === 'true');
     }
 }

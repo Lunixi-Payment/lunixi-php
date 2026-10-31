@@ -10,7 +10,7 @@
   "require": {
     "php": "^8.2",
     "codeigniter4/framework": "4.7.5",
-    "lunixi/php-sdk": "^0.29.3",
+    "lunixi/php-sdk": "^0.29.5",
     "ext-sodium": "*",
     "ext-curl": "*",
     "ext-sqlite3": "*"

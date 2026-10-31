@@ -2,6 +2,12 @@
 
 All notable changes to `lunixi/php-sdk`.
 
+## 0.29.5
+
+- Expose the authenticated backend's optional `paymentPageUrl` for redirect checkout; never derive it from the embedded form token. Validate the fixed HTTPS payment origin and opaque path to reject open redirects.
+- Persist this token-bearing URL encrypted with the durable Commerce attempt and restore it unchanged on reuse. Missing legacy URLs keep embedded checkout available and fail closed for redirects without creating a new charge or rotating the attempt key.
+- Merchant-site embedded checkout remains the default. The same Lunixi form owns payment methods, eligible alternatives, multi-card, installments and insurance in either presentation.
+
 ## 0.29.4
 
 ### Added

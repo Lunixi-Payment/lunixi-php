@@ -4,7 +4,7 @@
 
 ## Installation and durable storage
 
-Use `lunixi/php-sdk` 0.29 or later. ZIP modules bundle a scoped copy so a merchant does not need Composer or a conflicting site-wide vendor tree. A source repository release does not imply that a package registry or platform marketplace has accepted the module.
+Use `lunixi/php-sdk` 0.29.5 or later for backend `paymentPageUrl` support. ZIP modules bundle a scoped copy so a merchant does not need Composer or a conflicting site-wide vendor tree. A source repository release does not imply that a package registry or platform marketplace has accepted the module.
 
 Create a separate, backed-up 32-byte encryption key outside the web root. Do not derive it from a webhook secret, merchant private key, database password or public platform identifier. Configure an HTTPS gateway origin only from an operator-approved allowlist. Production defaults to `https://api-gateway.lunixi.com`; test/live access is determined by the merchant API key.
 
@@ -29,9 +29,9 @@ Uncertain create and financial operation retries stop after 23 hours, before the
 
 `FAILED` alone stays in review because the public payment GET does not expose definitive provider outcome certainty. Do not release fulfillment or create a new attempt from that status alone. `resetFailedAttempt` only resets an authenticated nonsplit `VOIDED`/`EXPIRED` intent with zero captured/refunded funds. A compensated split does not authorize a fresh attempt automatically.
 
-For embedded checkout, load only the fixed official bundle `https://cdn.lunixi.com/lunixi-checkout.min.js`, provide an element with id `lunixi-checkout-form`, and pass the JSON from `$session->browserConfig()` to `Lunixi.checkout.create`. Call `checkout.mount('#lunixi-checkout-form')`. Use the platform's asset and script APIs; preserve CSP nonces where required. Do not print `checkoutFormContent` as HTML. Only a browser token is sent to the client; merchant secrets remain on the server.
+**Embedded checkout is the default in every merchant integration:** the existing form opens on the merchant’s own website. Load only the fixed official bundle `https://cdn.lunixi.com/lunixi-checkout.min.js`, provide an element with id `lunixi-checkout-form`, and pass the JSON from `$session->browserConfig()` to `Lunixi.checkout.create`. Call `checkout.mount('#lunixi-checkout-form')`. Use the platform's asset and script APIs; preserve CSP nonces where required. Do not print `checkoutFormContent` as HTML. Only a browser token is sent to the client; merchant secrets remain on the server.
 
-For hosted checkout, pass `true` as the fourth argument to `start` and redirect to `$session->hostedUrl()`. The service binds the form to `https://pay.lunixi.com`. Always verify order ownership before showing a token or redirecting. The form's available methods are managed in Lunixi; no duplicate payment-method switches are necessary in the plugin.
+For optional hosted checkout, pass `true` as the fourth argument to `start` and redirect to `$session->hostedUrl()`. This returns the exact validated `paymentPageUrl` from the authenticated backend response. Its opaque token may differ from the embedded token because each is bound to its own page origin. The URL is encrypted in the attempt alongside the browser token; never construct a URL from a token. Missing legacy URLs fail closed for redirects without rotating the key or changing the original request. Always verify order ownership before showing a token or redirecting. The form's available methods are managed in Lunixi; no duplicate payment-method switches are necessary in the plugin.
 
 The fifth `start` argument enables preauthorization. An authorized order is on hold, not paid. The sixth argument selects the form locale. Callback URLs must use HTTPS. Callback submissions are informational: ignore their payment status and use authenticated reconciliation.
 

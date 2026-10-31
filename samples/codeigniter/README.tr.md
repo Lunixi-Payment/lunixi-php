@@ -4,7 +4,7 @@
 
 [English](README.md) · [Rehber](https://docs.lunixi.com/tr/sdks/codeigniter) · [Kaynak](https://github.com/Lunixi-Payment/lunixi-php/tree/main/samples/codeigniter)
 
-**CodeIgniter 4.7.5 / PHP 8.2+** üzerinde çalışan, **`lunixi/php-sdk:^0.29.3`** kullanan uygulama örneği. Yerel oturum/parola özeti, CSRF ve sipariş sahipliği, yönlendirmeli/gömülü Lunixi formu, ham imzalı webhook, gerçek SQLite transaction ve şifreli kalıcı ödeme olay kuyruğu içerir. Mevcut PHP SDK reposunun örneğidir; ayrı paket veya Bundle değildir.
+**CodeIgniter 4.7.5 / PHP 8.2+** üzerinde çalışan, **`lunixi/php-sdk:^0.29.5`** kullanan uygulama örneği. Yerel oturum/parola özeti, CSRF ve sipariş sahipliği, yönlendirmeli/gömülü Lunixi formu, ham imzalı webhook, gerçek SQLite transaction ve şifreli kalıcı ödeme olay kuyruğu içerir. Mevcut PHP SDK reposunun örneğidir; ayrı paket veya Bundle değildir.
 
 İki açıkça oluşturulan deneme hesabının ayrı sunucu tarafı 19,90 TRY siparişi bulunur. Tarayıcıdan tutar alınmaz, kart verisi toplanmaz, otomatik sahte ödeme modu açılmaz. Çoklu kart, taksit, alternatif yöntemler ve sigorta Lunixi form ayarlarındadır. İmzalama, para ve tahsilat kanıtı ortak SDK'dadır.
 
@@ -28,7 +28,7 @@ Yalnız bu örneğe ait, Git dışında kalan `.env` dosyasını doldurun; üst 
 | `LUNIXI_WEBHOOK_SECRET` | Webhook sırrı |
 | `LUNIXI_ENCRYPTION_KEY` | Yukarıda üretilen ayrı 32 bayt anahtarın base64 karşılığı |
 | `LUNIXI_APP_URL` | Dönüş/webhook için herkese açık HTTPS kök adres |
-| `LUNIXI_CHECKOUT_MODE` | `hosted` veya `embedded` |
+| `LUNIXI_CHECKOUT_MODE` | `embedded` (varsayılan) veya isteğe bağlı `hosted` |
 | `LUNIXI_PREAUTH` | Ön provizyon için `true`, diğer durumda `false` |
 | `DEMO_ALICE_PASSWORD`, `DEMO_BOB_PASSWORD` | Ayrı, en az 16 karakterlik güçlü parolalar |
 
@@ -54,7 +54,7 @@ Gerçek TEST ödemesi için TLS tüneli/HTTPS sunucusu kullanın; `app.baseURL` 
 
 Cross-site form POST sırasında SameSite=Lax çerezi gelmeyebilir; 303 sonrası GET normal oturum ve sahiplik kontrolünü uygular. Form dönüş imzası webhook sırrıyla doğrulanmaz. Reverse proxy üzerinde de gövde sınırı koyun; PHP uygulama kontrolünden önce girdiyi belleğe alabilir.
 
-API kökü sabit `https://api-gateway.lunixi.com` adresidir. Gerçek TEST/LIVE erişimini anahtar belirler, isteğe uydurma ortam alanı eklenmez. Yönlendirme yalnız `https://pay.lunixi.com/payment/<token>` adresine yapılır. Gömülü form resmi `https://cdn.lunixi.com/lunixi-checkout.min.js` dosyasını ve güvenli JSON'u kullanır; API'den gelen HTML basılmaz. CSP izinlerini resmi form gereksinimleriyle düzenleyin.
+API kökü sabit `https://api-gateway.lunixi.com` adresidir. Gerçek TEST/LIVE erişimini anahtar belirler, isteğe uydurma ortam alanı eklenmez. Varsayılan gömülü form kendi sitenizde açılır. İsteğe bağlı yönlendirmede backend yanıtındaki doğrulanmış `paymentPageUrl` kullanılır ve denemede şifreli saklanır; tarayıcı token’ından URL üretilmez. Gömülü form resmi `https://cdn.lunixi.com/lunixi-checkout.min.js` dosyasını ve güvenli JSON'u kullanır; API'den gelen HTML basılmaz. CSP izinlerini resmi form gereksinimleriyle düzenleyin.
 
 Rezervasyon ağ çağrısından önce kalıcıdır; tarayıcı tokenı ayrı anahtarla şifrelidir. Yanıt kaybında aynı istek/anahtar korunur. Gateway idempotency önbelleği 24 saattir; SDK 0.29.3 temkinli **23 saatlik yeniden gönderim sınırı** uygular. Eski belirsiz işlem yeni anahtarla tahsil edilmez; GET/webhook uzlaştırması açık kalır. Kaybolan ilk yanıt, imzalı ve opak asıl deneme metadata kanıtıyla kurtarılabilir.
 
@@ -84,6 +84,6 @@ php vendor/bin/phpcs --standard=phpcs.xml
 composer audit
 ```
 
-Testler gerçek CodeIgniter rotalarını/güvenliğini ve SQLite'ı açar. HTTP smoke ayrı gerçek PHP/CodeIgniter sunucusunda oturum çerezi yenileme, eksik CSRF, sahiplik, HTTP yöntemi, oturumsuz cross-site POST → 303 → korumalı GET ve sahte dönüşü test eder; Lunixi ödeme isteği göndermez. SDK yanıtları kontrollü HTTP taşımasıyla üretilirken kripto/veritabanı gerçektir. SQL tetikleyici geri alma/tekrar, imza/ortam, kesin para, kayıp yanıt, 24 saat sınırı ve FAILED inceleme testleri bulunur.
+Testler gerçek CodeIgniter rotalarını/güvenliğini ve SQLite'ı açar. HTTP smoke ayrı gerçek PHP/CodeIgniter sunucusunda oturum çerezi yenileme, eksik CSRF, sahiplik, HTTP yöntemi, oturumsuz cross-site POST → 303 → korumalı GET ve sahte dönüşü test eder. Çevrimdışı saklanan yönlendirmeli/gömülü denemelerde gerçek `no-store`, `no-referrer` ve yerel güvenlik başlıkları da doğrulanır; Lunixi ödeme isteği gönderilmez. Uygulama filtresi framework korumalarını sürdürür, yalnız referrer politikasını değiştirir. SDK yanıtları kontrollü HTTP taşımasıyla üretilirken kripto/veritabanı gerçektir. SQL tetikleyici geri alma/tekrar, imza/ortam, kesin para, kayıp yanıt, 24 saat sınırı ve FAILED inceleme testleri bulunur.
 
 Yayından önce HTTPS uygulamanızda kayıtlı TEST üye işyeriyle gerçek form/webhook akışını tamamlayın. [SDK güvenlik politikası](../../SECURITY.md) ve [resmi CodeIgniter rehberi](https://codeigniter.com/user_guide/) ek kaynaklardır.

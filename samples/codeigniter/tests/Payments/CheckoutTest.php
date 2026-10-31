@@ -37,7 +37,7 @@ final class CheckoutTest extends CIUnitTestCase
         $hash=csrf_hash();$token=csrf_token();
         $result=$this->withSession(['user_id'=>1,$token=>$hash])->post('/payments/1',[$token=>$hash]);
         $result->assertStatus(303);
-        self::assertStringStartsWith('https://pay.lunixi.com/payment/', $result->response()->getHeaderLine('Location'));
+        self::assertSame('https://pay.lunixi.com/payment/backend-page-pi-1', $result->response()->getHeaderLine('Location'));
         $record=$this->nativeDb->query('SELECT payload FROM lunixi_attempts')->getRowArray()['payload'];
         self::assertStringNotContainsString('fixture-browser-token',$record);
         self::assertSame(1990,$this->http->payments['pi-1']['data']['amount']);

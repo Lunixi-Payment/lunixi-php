@@ -2,12 +2,27 @@
 declare(strict_types=1);
 namespace Lunixi\Sdk\Commerce;
 
+use Lunixi\Sdk\Payment\PaymentPageUrl;
+
 final class CheckoutSession
 {
     public string $paymentId;
     public string $token;
-    public function __construct(string $paymentId, string $token) { $this->paymentId = $paymentId; $this->token = $token; }
-    public function hostedUrl(): string { return 'https://pay.lunixi.com/payment/' . rawurlencode($this->token); }
+    public string $paymentPageUrl;
+    public function __construct(string $paymentId, string $token, string $paymentPageUrl = '')
+    {
+        $this->paymentId = $paymentId;
+        $this->token = $token;
+        $this->paymentPageUrl = $paymentPageUrl === '' ? '' : PaymentPageUrl::validate($paymentPageUrl);
+    }
+    /** Never construct a hosted URL from the embedded token, which has another origin binding. */
+    public function hostedUrl(): string
+    {
+        if ($this->paymentPageUrl === '') {
+            throw new \RuntimeException('The gateway did not return paymentPageUrl; use embedded checkout or reconcile the existing attempt.');
+        }
+        return PaymentPageUrl::validate($this->paymentPageUrl);
+    }
     /** Safe inline JSON for the fixed official checkout bundle; never render gateway HTML. */
     public function browserConfig(): string
     {

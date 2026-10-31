@@ -4,7 +4,7 @@
 
 [English](README.md) · [Türkçe](README.tr.md) · [Guide](https://docs.lunixi.com/en/sdks/yii) · [Source](https://github.com/Lunixi-Payment/lunixi-php/tree/main/samples/yii)
 
-A runnable **Yii 2.0.55 / PHP 8.2+** web/console application using **`lunixi/php-sdk:^0.29.3`**. Native `IdentityInterface` session login, CSRF and owned-order checkout connect to hosted or embedded Lunixi form. Exact raw webhooks and authenticated settlement update native SQLite orders, event inbox and encrypted outbox atomically. This is a source example in the PHP SDK repository, not a separately published Yii extension.
+A runnable **Yii 2.0.55 / PHP 8.2+** web/console application using **`lunixi/php-sdk:^0.29.5`**. Native `IdentityInterface` session login, CSRF and owned-order checkout connect to hosted or embedded Lunixi form. Exact raw webhooks and authenticated settlement update native SQLite orders, event inbox and encrypted outbox atomically. This is a source example in the PHP SDK repository, not a separately published Yii extension.
 
 Two explicit demo accounts own separate server-side 19.90 TRY orders. Browser amounts are never authoritative; the module collects no card data and enables no implicit mock payment. Methods, split cards, installments and insurance stay configured in Lunixi. Authentication/signing, integer money, split-parent proof and safe financial retries remain in the shared SDK.
 
@@ -30,7 +30,7 @@ Fill this example's ignored `.env` **shell environment file**, then explicitly l
 | `LUNIXI_ENCRYPTION_KEY` | Independent base64-encoded 32-byte key from the first command |
 | `YII_COOKIE_KEY` | A different independent cookie-validation key from the second command |
 | `LUNIXI_APP_URL` | Public HTTPS base URL for callbacks |
-| `LUNIXI_CHECKOUT_MODE` | `hosted` (default) or `embedded` |
+| `LUNIXI_CHECKOUT_MODE` | `embedded` (default) or optional `hosted` |
 | `LUNIXI_PREAUTH` | `true` for authorization first, otherwise `false` |
 | `DEMO_ALICE_PASSWORD`, `DEMO_BOB_PASSWORD` | Explicit strong passwords of at least 16 characters |
 | `APP_LANGUAGE` | `en` or `tr` |
@@ -61,7 +61,7 @@ The example shell file enables **loopback-only development HTTP** with `APP_ENV=
 
 Strict URL parsing is enabled. Only the dedicated webhook POST and exact informational return POST disable CSRF. The return adapter accepts at most 64 KiB, ignores all submitted fields and performs no session/order lookup, database write or gateway request. Unknown orders receive the same fixed relative 303 without disclosure. A cross-site POST may omit SameSite=Lax cookies; the following GET retains native authentication and ownership. Do not verify a return form with the webhook secret. Also enforce body limits at the reverse proxy; PHP can buffer input before the application check. Checkout/login/logout retain Yii's native CSRF check. Session IDs rotate on login; identity resolves from native SQL, not user-supplied customer IDs. No card collection/recurring/token-vault endpoint is exposed.
 
-The approved API origin is fixed at `https://api-gateway.lunixi.com`; actual environment comes from the key, without an invented environment field. Hosted redirects use `https://pay.lunixi.com/payment/<token>`. Embedded mode mounts browser-safe JSON using only `https://cdn.lunixi.com/lunixi-checkout.min.js`; gateway HTML is never injected. Configure CSP for the official form origins.
+The approved API origin is fixed at `https://api-gateway.lunixi.com`; actual environment comes from the key, without an invented environment field. The default embedded mode opens the form on your own website. Optional hosted mode redirects to the exact validated `paymentPageUrl` returned by the backend and encrypted in the durable attempt; it never builds a URL from the browser token. Embedded mode mounts browser-safe JSON using only `https://cdn.lunixi.com/lunixi-checkout.min.js`; gateway HTML is never injected. Configure CSP for the official form origins.
 
 ## Durable payment and accounting
 

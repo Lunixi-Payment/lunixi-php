@@ -60,8 +60,13 @@ Payment SDK v1 implemented & verified (**300 unit tests, 2041 assertions**, PHP 
 | `Exception\*` | Typed error hierarchy. |
 | `LunixiClient` | Facade: `->payments()`, `->paymentLinks()`, `->wallet()`, `->bankConnect()`, `->sanction()`, `->reference()`, `->insurance()`, `->webhooks()`, `->api()`, `->tokens()`, `->signer()`. |
 
-Next: the `wordpress/` plugin (bundles this SDK via PHP-Scoper; WC gateway with
-HPOS + Blocks; webhook router; embeds the JS checkout SDK). Installments deferred.
+Native platform modules bundle this SDK through PHP-Scoper and use the shared checkout form on the merchant website. Enabled methods, installments and multi-card availability are managed by Lunixi; see [Commerce rendering](COMMERCE.md#checkout-rendering).
+
+## Merchant-site checkout and optional redirect
+
+Every merchant integration offers the existing Lunixi form on the merchant’s own page; embedded checkout is the default. Mount the official browser SDK using the create-intent `token` (or Commerce `browserConfig()`); enabled methods, multi-card, installments and insurance remain managed in the Lunixi form and panel.
+
+PHP SDK **0.29.5** also exposes `$intent->paymentPageUrl()` and `$session->hostedUrl()` for optional redirects. They use the exact validated backend `paymentPageUrl`, not a URL built from the embedded token. The URL may carry a different origin-bound token and is encrypted in durable Commerce attempts. A missing legacy URL never authorizes a fresh intent or key. See [the complete rendering contract](COMMERCE.md#checkout-rendering).
 
 ## Quick examples
 

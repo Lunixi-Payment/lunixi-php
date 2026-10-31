@@ -4,7 +4,7 @@
 
 [English](README.md) · [Rehber](https://docs.lunixi.com/tr/sdks/yii) · [Kaynak](https://github.com/Lunixi-Payment/lunixi-php/tree/main/samples/yii)
 
-**Yii 2.0.55 / PHP 8.2+** üzerinde çalışan web/konsol örneği; **`lunixi/php-sdk:^0.29.3`** kullanır. Yerel IdentityInterface oturumu, parola özeti, CSRF ve sipariş sahipliğini gömülü/yönlendirmeli Lunixi formuna bağlar. Ham imzalı webhook, doğrulanmış tahsilat ve native SQLite transaction ile sipariş, olay kaydı ve şifreli outbox birlikte yazılır. Mevcut PHP SDK reposundaki kaynak örneğidir; ayrı Yii eklentisi değildir.
+**Yii 2.0.55 / PHP 8.2+** üzerinde çalışan web/konsol örneği; **`lunixi/php-sdk:^0.29.5`** kullanır. Yerel IdentityInterface oturumu, parola özeti, CSRF ve sipariş sahipliğini gömülü/yönlendirmeli Lunixi formuna bağlar. Ham imzalı webhook, doğrulanmış tahsilat ve native SQLite transaction ile sipariş, olay kaydı ve şifreli outbox birlikte yazılır. Mevcut PHP SDK reposundaki kaynak örneğidir; ayrı Yii eklentisi değildir.
 
 İki açıkça oluşturulan deneme hesabının ayrı sunucu tarafı 19,90 TRY siparişi bulunur. İstemci tutarı ödeme kanıtı değildir; kart verisi toplanmaz ve otomatik sahte ödeme açılmaz. Yöntemler, çoklu kart, taksit ve sigorta Lunixi panelindedir. İmzalama, integer para ve güvenli tekrar ortak SDK'dadır.
 
@@ -30,7 +30,7 @@ Kaynak dışında tutulan bu örneğe ait `.env` **kabuk ortam dosyasını** dol
 | `LUNIXI_ENCRYPTION_KEY` | İlk komuttan ayrı 32 bayt anahtarın base64 karşılığı |
 | `YII_COOKIE_KEY` | İkinci komuttan farklı, ayrı çerez doğrulama anahtarı |
 | `LUNIXI_APP_URL` | Herkese açık HTTPS kök adres |
-| `LUNIXI_CHECKOUT_MODE` | `hosted` veya `embedded` |
+| `LUNIXI_CHECKOUT_MODE` | `embedded` (varsayılan) veya isteğe bağlı `hosted` |
 | `LUNIXI_PREAUTH` | Ön provizyon için `true`, diğer durumda `false` |
 | `DEMO_ALICE_PASSWORD`, `DEMO_BOB_PASSWORD` | Ayrı, en az 16 karakterlik güçlü parolalar |
 | `APP_LANGUAGE` | `en` veya `tr` |
@@ -58,7 +58,7 @@ php yii serve --port=8081
 
 Cross-site form POST sırasında SameSite=Lax çerezi gelmeyebilir; 303 sonrası GET normal oturum ve sahiplik kontrolünü korur. Dönüş formu webhook sırrıyla doğrulanmaz. Proxy gövde sınırı da uygulayın; PHP uygulama kontrolünden önce girdiyi belleğe alabilir. Ödeme başlatma/giriş/çıkış CSRF korumasını sürdürür.
 
-API adresi sabit `https://api-gateway.lunixi.com` adresidir; gerçek ortamı anahtar belirler, uydurma ortam parametresi eklenmez. Yönlendirmeli form yalnız `https://pay.lunixi.com/payment/<token>` adresine gider. Gömülü mod sabit `https://cdn.lunixi.com/lunixi-checkout.min.js` ve güvenli JSON kullanır; gateway HTML'i çalıştırılmaz. Resmi formun CSP origin izinlerini tanımlayın.
+API adresi sabit `https://api-gateway.lunixi.com` adresidir; gerçek ortamı anahtar belirler, uydurma ortam parametresi eklenmez. Varsayılan gömülü form kendi sitenizde açılır. İsteğe bağlı yönlendirmede backend yanıtındaki doğrulanmış `paymentPageUrl` kullanılır ve denemede şifreli saklanır; tarayıcı token’ından URL üretilmez. Gömülü mod sabit `https://cdn.lunixi.com/lunixi-checkout.min.js` ve güvenli JSON kullanır; gateway HTML'i çalıştırılmaz. Resmi formun CSP origin izinlerini tanımlayın.
 
 ## Kalıcılık ve para doğruluğu
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Real native HTTP sessions/CSRF smoke test. No payment POST with valid CSRF and no gateway call."""
+"""Native HTTP security checks, including offline-cached checkouts; no gateway call."""
 import base64, http.cookiejar, json, os, re, secrets, socket, sqlite3, subprocess, tempfile, time
 from pathlib import Path
 from urllib.request import build_opener, HTTPCookieProcessor, HTTPRedirectHandler, Request
@@ -95,6 +95,31 @@ with tempfile.TemporaryDirectory(prefix='lunixi-native-http-') as tmp:
         with sqlite3.connect(database) as db:
             ensure(db.execute('SELECT state FROM orders WHERE id=1').fetchone()[0] == 'pending', 'Browser return marked paid')
             ensure(db.execute('SELECT COUNT(*) FROM lunixi_attempts').fetchone()[0] == 0, 'A rejected browser request reserved a payment')
+        cached_env = dict(env, LUNIXI_NATIVE_HTTP_CACHE_FIXTURE='1')
+        cached = subprocess.run(['php', str(ROOT / 'tests/seed-http-checkouts.php')], cwd=ROOT, env=cached_env, capture_output=True, text=True)
+        ensure(cached.returncode == 0, 'Offline checkout cache fixture failed')
+        owned = build_opener(HTTPCookieProcessor(jar), NoRedirect())
+        for order_id, expected_status in ((1, 303), (3, 200)):
+            status, body = request('/orders')
+            ensure(status == 200, 'Owned orders page unavailable')
+            token_name, token = csrf(body)
+            try:
+                response = owned.open(Request(origin + f'/payments/{order_id}', data=urlencode({token_name: token}).encode()), timeout=10)
+            except HTTPError as error:
+                response = error
+            with response:
+                ensure(response.code == expected_status, 'Cached checkout did not resume in its saved mode')
+                ensure('no-store' in response.headers.get('Cache-Control', ''), 'Checkout response can be cached')
+                ensure(response.headers.get('Referrer-Policy') == 'no-referrer', 'Checkout referrer policy was overwritten')
+                ensure(response.headers.get('X-Frame-Options') == 'SAMEORIGIN' and response.headers.get('X-Content-Type-Options') == 'nosniff', 'Native secure headers were lost')
+                rendered = response.read().decode()
+                if order_id == 1:
+                    ensure(response.headers.get('Location') == 'https://pay.lunixi.com/payment/backend-page-pi-1', 'Hosted checkout changed the backend URL')
+                else:
+                    ensure('https://cdn.lunixi.com/lunixi-checkout.min.js' in rendered and 'lunixi-checkout-form' in rendered, 'Embedded form did not render on merchant page')
+        with sqlite3.connect(database) as db:
+            ensure(db.execute('SELECT COUNT(*) FROM lunixi_attempts').fetchone()[0] == 2, 'Cached HTTP resume created another attempt')
+            ensure(db.execute("SELECT COUNT(*) FROM orders WHERE state != 'pending'").fetchone()[0] == 0, 'A browser checkout changed financial state')
         print(f'{FRAMEWORK}: real native HTTP smoke passed ({checks} checks); no gateway payment request sent')
     finally:
         server.terminate()

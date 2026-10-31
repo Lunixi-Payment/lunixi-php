@@ -36,6 +36,16 @@ final class CheckoutIntent
         return (string) ($this->raw['token'] ?? '');
     }
 
+    /** Optional hosted alternative. It may contain a different, origin-bound token. */
+    public function paymentPageUrl(): string
+    {
+        $url = $this->raw['paymentPageUrl'] ?? '';
+        if (!is_string($url)) {
+            throw new \UnexpectedValueException('The gateway returned an invalid paymentPageUrl.');
+        }
+        return $url === '' ? '' : PaymentPageUrl::validate($url);
+    }
+
     /** SDK init script/HTML, when the gateway returns one (may be empty). */
     public function checkoutFormContent(): string
     {

@@ -10,7 +10,7 @@
     "ext-sodium": "*",
     "ext-curl": "*",
     "yiisoft/yii2": "2.0.55",
-    "lunixi/php-sdk": "^0.29.3"
+    "lunixi/php-sdk": "^0.29.5"
   },
   "require-dev": {
     "phpunit/phpunit": "^11.5",

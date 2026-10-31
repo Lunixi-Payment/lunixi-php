@@ -327,12 +327,54 @@ final class CommerceTest extends TestCase
     }
     public function testSecretBoxAuthenticatesCiphertextAndBrowserJsonEscapesScriptEndTags(): void
     {
-        $session = new CheckoutSession('pi-1', '</script><script>alert(1)</script>');
+        $session = new CheckoutSession('pi-1', '</script><script>alert(1)</script>', 'https://pay.lunixi.com/payment/backend-page-token-123');
         self::assertStringNotContainsString('<', $session->browserConfig());
         self::assertStringStartsWith('https://pay.lunixi.com/payment/', $session->hostedUrl());
         $box = new SecretBox(str_repeat('k', 32));
         $cipher = $box->encrypt('private-value'); self::assertSame('private-value', $box->decrypt($cipher));
         $raw = base64_decode($cipher); $raw[30] = chr(ord($raw[30]) ^ 1);
         $this->expectException(\RuntimeException::class); $box->decrypt(base64_encode($raw));
+    }
+
+    public function testBackendPageUrlHasItsOwnTokenAndSurvivesEncryptedAttemptReuse(): void
+    {
+        [$service, $http, $store] = $this->service();
+        $url = 'https://pay.lunixi.com/payment/separate-hosted-token-123';
+        $http->pushJson(201, ['data' => ['paymentId' => 'pi-1', 'token' => 'embedded-browser-token', 'paymentPageUrl' => $url]]);
+        $session = $service->start('123', $this->order(), 'https://shop.example/return');
+        self::assertSame($url, $session->hostedUrl());
+        self::assertStringContainsString('embedded-browser-token', $session->browserConfig());
+        self::assertStringNotContainsString('separate-hosted-token', $session->browserConfig());
+        $request = json_decode($http->lastCall()['body'], true);
+        self::assertArrayNotHasKey('allowedOrigin', $request['metadata']);
+        $stored = $store->transaction('123', fn () => $store->load('123'));
+        self::assertNotSame('', $stored['paymentPageUrl']);
+        self::assertStringNotContainsString('separate-hosted-token', json_encode($stored));
+        self::assertStringNotContainsString('embedded-browser-token', json_encode($stored));
+        self::assertSame($url, $service->start('123', $this->order(), 'https://shop.example/return')->hostedUrl());
+        self::assertCount(1, $http->calls);
+
+        // An older cached attempt has no backend page URL. It stays the same
+        // attempt and can still embed; it must not guess a URL or start a charge.
+        $store->transaction('123', function () use ($store, $stored): void {
+            unset($stored['paymentPageUrl']); $store->save('123', $stored);
+        });
+        $legacy = $service->start('123', $this->order(), 'https://shop.example/return');
+        self::assertSame('embedded-browser-token', $legacy->token);
+        self::assertCount(1, $http->calls);
+        $this->expectException(\RuntimeException::class);
+        $legacy->hostedUrl();
+    }
+
+    public function testPaymentPageUrlRejectsRedirectInjectionWithoutAffectingEmbeddedSessions(): void
+    {
+        $good = 'https://pay.lunixi.com/payment/separate-hosted-token-123';
+        foreach (['http://pay.lunixi.com/payment/separate-hosted-token-123', 'https://pay.lunixi.com.evil.example/payment/separate-hosted-token-123', 'https://pay.lunixi.com@evil.example/payment/separate-hosted-token-123', $good . '?next=https://evil.example', $good . '#fragment', $good . "\r\nLocation: https://evil.example", 'https://pay.lunixi.com/payment/../../unsafe-token-value', 'https://pay.lunixi.com:443/payment/separate-hosted-token-123'] as $bad) {
+            try { new CheckoutSession('pi-1', 'embedded-browser-token', $bad); self::fail('Accepted an unsafe page URL.'); }
+            catch (\UnexpectedValueException $expected) { self::assertNotSame('', $expected->getMessage()); }
+        }
+        $intent = new \Lunixi\Sdk\Payment\CheckoutIntent(['data' => ['paymentId' => 'pi-1', 'token' => 'embedded-browser-token', 'paymentPageUrl' => $good]]);
+        self::assertSame($good, $intent->paymentPageUrl());
+        self::assertSame('', (new \Lunixi\Sdk\Payment\CheckoutIntent(['token' => 'legacy-token']))->paymentPageUrl());
     }
 }

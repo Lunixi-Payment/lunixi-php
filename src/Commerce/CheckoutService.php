@@ -39,7 +39,7 @@ final class CheckoutService
                 if (($r['requestHash'] ?? null) !== $hash) { throw new \RuntimeException('Order or checkout configuration changed; reconcile the existing attempt first.'); }
                 return $r;
             }
-            $r = ['snapshot' => $order->toArray(), 'requestHash' => $hash, 'key' => 'lunixi-' . bin2hex(random_bytes(24)), 'state' => 'reserved', 'paymentId' => '', 'token' => '', 'createdAt' => time()];
+            $r = ['snapshot' => $order->toArray(), 'requestHash' => $hash, 'key' => 'lunixi-' . bin2hex(random_bytes(24)), 'state' => 'reserved', 'paymentId' => '', 'token' => '', 'paymentPageUrl' => '', 'createdAt' => time()];
             $this->store->save($orderKey, $r);
             return $r;
         });
@@ -48,7 +48,7 @@ final class CheckoutService
         }
         if ($record['paymentId'] !== '' && $record['token'] !== '') {
             if (time() - $record['createdAt'] >= 840) { throw new \RuntimeException('Checkout token expired; reconcile before starting another attempt.'); }
-            return new CheckoutSession($record['paymentId'], $this->box->decrypt($record['token']));
+            return new CheckoutSession($record['paymentId'], $this->box->decrypt($record['token']), ($record['paymentPageUrl'] ?? '') === '' ? '' : $this->box->decrypt($record['paymentPageUrl']));
         }
         // Opaque reservation binding supports safe webhook recovery after a lost
         // create response. It is stable across retries and never browser input.
@@ -63,10 +63,12 @@ final class CheckoutService
             if ($current === null || $current['key'] !== $record['key'] || ($current['paymentId'] !== '' && $current['paymentId'] !== $intent->paymentId())) { throw new \RuntimeException('Concurrent checkout identity mismatch.'); }
             $current['paymentId'] = $intent->paymentId();
             $current['token'] = $this->box->encrypt($intent->token());
+            $pageUrl = $intent->paymentPageUrl();
+            $current['paymentPageUrl'] = $pageUrl === '' ? '' : $this->box->encrypt($pageUrl);
             if ($current['state'] === 'reserved') { $current['state'] = 'pending'; }
             $this->store->save($orderKey, $current);
         });
-        return new CheckoutSession($intent->paymentId(), $intent->token());
+        return new CheckoutSession($intent->paymentId(), $intent->token(), $intent->paymentPageUrl());
     }
 
     /** A new attempt is allowed only after an authenticated terminal failure, never on token expiry alone. */
@@ -89,7 +91,7 @@ final class CheckoutService
             $history[] = ['paymentId' => $current['paymentId'], 'state' => 'failed', 'createdAt' => $current['createdAt'], 'operations' => $current['operations'] ?? []];
             $current['history'] = $history;
             $current['key'] = 'lunixi-' . bin2hex(random_bytes(24));
-            $current['state'] = 'reserved'; $current['paymentId'] = ''; $current['token'] = ''; $current['createdAt'] = time();
+            $current['state'] = 'reserved'; $current['paymentId'] = ''; $current['token'] = ''; $current['paymentPageUrl'] = ''; $current['createdAt'] = time();
             unset($current['chargedAmount'], $current['capturedAmount'], $current['refundedAmount'], $current['splitId'], $current['operations'], $current['gatewayStatus']);
             $this->store->save($orderKey, $current);
         });
