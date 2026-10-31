@@ -106,7 +106,7 @@ final class WebhookVerifier
             : $eventId;
         $data = (isset($envelope['data']) && is_array($envelope['data'])) ? $envelope['data'] : $envelope;
 
-        return new WebhookEvent($id, $type, $timestamp, $data, $envelope);
+        return new WebhookEvent($id, $type, $timestamp, $data, $envelope, hash('sha256', $rawBody));
     }
 
     /**

@@ -1,0 +1,44 @@
+# Exact reviewed generated-key assertion and synthetic test-vector matches only.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Reviewed synthetic test material or PEM marker assertion"
+condition = "AND"
+targetRules = ["private-key"]
+paths = ['''(?:^|/)tests/Auth/Ed25519SignerTest\.php$''']
+regexTarget = "match"
+regexes = ['''\A\Q-----BEGIN PRIVATE KEY-----', $keys['privateKey']);
+        $this->assertStringContainsString('-----BEGIN PUBLIC KEY-----\E\z'''] # gitleaks:allow
+
+[[allowlists]]
+description = "Reviewed synthetic test material or PEM marker assertion"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''(?:^|/)tests/Webhook/fixtures/webhook\-v2\-vectors\.json$''']
+regexTarget = "match"
+regexes = ['''\A\Qsecret":"whsec_testsecret_0123456789abcdef"\E\z'''] # gitleaks:allow
+
+[[allowlists]]
+description = "Reviewed synthetic test material or PEM marker assertion"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''(?:^|/)tests/Webhook/fixtures/webhook\-v2\-vectors\.json$''']
+regexTarget = "match"
+regexes = ['''\A\Qsecret":"whsec_testsecret_0123456789abcdef"\E\z'''] # gitleaks:allow
+
+[[allowlists]]
+description = "Reviewed synthetic test material or PEM marker assertion"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''(?:^|/)tests/Webhook/fixtures/webhook\-v2\-vectors\.json$''']
+regexTarget = "match"
+regexes = ['''\A\Qsecret":"whsec_previous_fedcba9876543210aa"\E\z'''] # gitleaks:allow
+
+[[allowlists]]
+description = "Reviewed synthetic test material or PEM marker assertion"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''(?:^|/)tests/Insurance/InsuranceClientTest\.php$''']
+regexTarget = "match"
+regexes = ['''\A\QKEY = 'insurance-test-key-0001'\E\z'''] # gitleaks:allow

@@ -18,19 +18,24 @@ final class WebhookEvent
     private array $data;
     /** @var array<string,mixed> */
     private array $envelope;
+    private ?string $rawBodyHash;
 
     /**
      * @param array<string,mixed> $data     The event-specific payload (envelope `data`).
      * @param array<string,mixed> $envelope The full delivered envelope (defaults to $data for flat bodies).
      */
-    public function __construct(string $id, string $type, string $timestamp, array $data, array $envelope = [])
+    public function __construct(string $id, string $type, string $timestamp, array $data, array $envelope = [], ?string $rawBodyHash = null)
     {
         $this->id = $id;
         $this->type = $type;
         $this->timestamp = $timestamp;
         $this->data = $data;
         $this->envelope = $envelope === [] ? $data : $envelope;
+        $this->rawBodyHash = $rawBodyHash;
     }
+
+    /** SHA-256 of the exact authenticated raw bytes; null on manually constructed events. */
+    public function rawBodyHash(): ?string { return $this->rawBodyHash; }
 
     /** Unique event id (from `x-lunixi-event-id`). Use this to dedupe — delivery is at-least-once. */
     public function id(): string

@@ -2,6 +2,15 @@
 
 All notable changes to `lunixi/php-sdk`.
 
+## 0.29.0
+
+### Added
+
+- Shared `Commerce` checkout orchestration for native store adapters: exact decimal money conversion, immutable order snapshots, durable attempt/operation keys, authenticated payment and split-parent reconciliation, and signed webhook envelope binding.
+- Atomic order update and webhook inbox contract (`LedgerStore`), with a MySQL/InnoDB and SQLite implementation (`PdoLedgerStore`). Reservations commit before network calls; unknown results never rotate financial operation keys.
+- Authenticated encryption for stored credentials and checkout tokens, fixed-origin hosted checkout URLs, and script-safe browser configuration without rendering gateway HTML.
+- Capture, refund and void operations with durable platform operation IDs. New checkout attempts require an authenticated terminal failure. See [COMMERCE.md](COMMERCE.md) for adapter responsibilities and installation.
+
 ## 0.28.1
 
 ### Fixed
