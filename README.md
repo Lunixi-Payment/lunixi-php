@@ -26,6 +26,16 @@ adapters over this SDK.
 - **Requires:** PHP 7.4+, `ext-sodium`, `ext-curl`, `ext-json`
 - **License:** MIT
 
+
+## Native framework integrations
+
+- [CodeIgniter 4](samples/codeigniter/README.md): runnable native sessions, customer ownership, CSRF, SQLite checkout ledger and signed webhook/outbox workflow. [Türkçe](samples/codeigniter/README.tr.md).
+- [Yii 2](samples/yii/README.md): native routing/authentication/CSRF and the same shared Commerce kernel on the framework SQL transaction. [Türkçe](samples/yii/README.tr.md).
+- [Symfony Bundle](https://github.com/Lunixi-Payment/lunixi-symfony): service injection, private token caching and a transactional Doctrine ledger.
+- [Laravel](https://github.com/Lunixi-Payment/lunixi-laravel): existing framework package.
+
+Each framework guide includes explicit installation/schema commands, persistent secrets, TEST credentials, native checks and operator limits. Available form methods are configured in Lunixi; browser callback fields never confirm a payment.
+
 ## Status
 
 Payment SDK v1 implemented & verified (**300 unit tests, 2041 assertions**, PHP 8.4):

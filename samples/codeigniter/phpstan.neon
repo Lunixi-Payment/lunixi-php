@@ -1,0 +1,16 @@
+parameters:
+    level: 8
+    paths:
+        - app/Payments
+        - app/Controllers/Account.php
+        - app/Controllers/Payments.php
+        - app/Controllers/Webhook.php
+        - app/Controllers/ReturnAdapter.php
+        - app/Filters/Authenticated.php
+        - app/Filters/BrowserCsrf.php
+        - app/Commands
+    bootstrapFiles:
+        - vendor/autoload.php
+    scanFiles:
+        - vendor/codeigniter4/framework/system/Common.php
+    tmpDir: .phpstan-cache

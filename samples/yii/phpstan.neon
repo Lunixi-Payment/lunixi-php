@@ -1,0 +1,11 @@
+parameters:
+    level: 8
+    paths:
+        - components
+        - controllers
+        - models
+        - commands
+    bootstrapFiles:
+        - vendor/autoload.php
+        - vendor/yiisoft/yii2/Yii.php
+    tmpDir: .phpstan-cache

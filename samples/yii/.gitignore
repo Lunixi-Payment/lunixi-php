@@ -1,0 +1,12 @@
+/vendor/
+/runtime/*
+!/runtime/.gitkeep
+/web/assets/*
+/.env
+/config/local.php
+/.phpunit.cache/
+/.phpstan-cache/
+
+!/web/assets/lunixi.svg
+!/web/assets/checkout.css
+!/web/assets/checkout.js

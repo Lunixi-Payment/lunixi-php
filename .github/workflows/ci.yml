@@ -64,3 +64,28 @@ jobs:
           LUNIXI_TEST_DB_FILE: /tmp/lunixi-php-test-db.json
       - run: vendor/bin/phpstan analyse src/Commerce --level=8 --no-progress
       - run: composer audit
+
+  frameworks:
+    name: Native ${{ matrix.framework }} (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: ['codeigniter', 'yii']
+        php: ['8.2', '8.4']
+    defaults:
+      run:
+        working-directory: samples/${{ matrix.framework }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: sodium, curl, json, bcmath, intl, mbstring, sqlite3, pdo_sqlite
+          coverage: none
+      - run: composer install --no-progress --prefer-dist
+      - run: php vendor/bin/phpunit -c phpunit.xml
+      - run: python3 tests/http-smoke.py
+      - run: php vendor/bin/phpstan analyse --no-progress
+      - run: php vendor/bin/phpcs
+      - run: composer audit

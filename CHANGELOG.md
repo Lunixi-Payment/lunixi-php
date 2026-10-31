@@ -2,6 +2,14 @@
 
 All notable changes to `lunixi/php-sdk`.
 
+## 0.29.4
+
+### Added
+
+- Runnable CodeIgniter 4 and Yii 2 checkout examples with native authentication/CSRF, encrypted durable SQLite reservations, signed webhook inbox and atomic native order/outbox updates.
+- Bounded stateless informational POST returns resume through authenticated GET without trusting submitted payment fields; exact replay windows and unknown failure holds remain enforced.
+- English/Turkish framework guides and native HTTP/transaction/security regression suites. The shared Commerce runtime is unchanged from 0.29.3.
+
 ## 0.29.3
 
 ### Fixed
