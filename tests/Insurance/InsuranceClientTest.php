@@ -151,7 +151,7 @@ final class InsuranceClientTest extends TestCase
     {
         return new BasketItem([
             'id' => 'ticket-1',
-            'price' => 100000,
+            'price' => '100000',
             'name' => 'Sample ticket',
             'category1' => 'ticket',
             'itemType' => BasketItem::TYPE_VIRTUAL,
@@ -179,7 +179,7 @@ final class InsuranceClientTest extends TestCase
     {
         return array_merge([
             'quoteId' => self::QUOTE_ID, 'insuranceType' => 'TICKET_CANCELLATION', 'schemaVersion' => 1, 'title' => 'Ticket cancellation',
-            'premiumAmount' => 4900, 'currency' => 'TRY', 'premiumCollectedBy' => 'MERCHANT', 'provider' => self::providerJson(),
+            'premiumAmount' => '4900', 'currency' => 'TRY', 'premiumCollectedBy' => 'MERCHANT', 'provider' => self::providerJson(),
             'basketItemIds' => ['ticket-1'], 'coverageSummary' => [], 'terms' => ['version' => 'v1', 'sha256' => str_repeat('d', 64)],
             'underwriterName' => null, 'expiresAt' => '2026-01-01T07:15:00.000Z', 'status' => 'QUOTED', 'paymentIntentId' => null,
             'createdAt' => '2026-01-01T07:00:00.000Z',
@@ -191,7 +191,7 @@ final class InsuranceClientTest extends TestCase
         return array_merge([
             'orderId' => self::ORDER_ID, 'quoteId' => self::QUOTE_ID, 'insuranceType' => 'TICKET_CANCELLATION', 'surface' => 'MERCHANT_API',
             'status' => 'CREATED', 'collectionStatus' => 'NOT_STARTED', 'policyStatus' => 'NOT_REQUESTED', 'refundStatus' => 'NONE',
-            'documentStatus' => 'NOT_AVAILABLE', 'paymentMode' => 'NO_PAYMENT', 'premiumCollectedBy' => 'MERCHANT', 'premiumAmount' => 4900,
+            'documentStatus' => 'NOT_AVAILABLE', 'paymentMode' => 'NO_PAYMENT', 'premiumCollectedBy' => 'MERCHANT', 'premiumAmount' => '4900',
             'currency' => 'TRY', 'paymentIntentId' => null, 'merchantOrderId' => 'ORD-1', 'provider' => self::providerJson(),
             'basketItemIds' => ['ticket-1'], 'policies' => [], 'errorCode' => null, 'refundErrorCode' => null, 'refundedAt' => null,
             'createdAt' => '2026-01-01T07:00:00.000Z', 'updatedAt' => '2026-01-01T07:00:00.000Z',
@@ -201,10 +201,10 @@ final class InsuranceClientTest extends TestCase
     private static function totalsJson(): array
     {
         return [
-            'orderCount' => 2, 'premiumAmount' => 9800, 'collectedOrderCount' => 2, 'collectedPremiumAmount' => 9800,
-            'policyCount' => 2, 'inForcePolicyCount' => 1, 'inForcePremiumAmount' => 4900, 'cancelledPolicyCount' => 1,
-            'cancelledPremiumAmount' => 4900, 'refundedOrderCount' => 1, 'refundedPremiumAmount' => 4900,
-            'refundOpenOrderCount' => 0, 'refundOpenPremiumAmount' => 0,
+            'orderCount' => 2, 'premiumAmount' => '9800', 'collectedOrderCount' => 2, 'collectedPremiumAmount' => '9800',
+            'policyCount' => 2, 'inForcePolicyCount' => 1, 'inForcePremiumAmount' => '4900', 'cancelledPolicyCount' => 1,
+            'cancelledPremiumAmount' => '4900', 'refundedOrderCount' => 1, 'refundedPremiumAmount' => '4900',
+            'refundOpenOrderCount' => 0, 'refundOpenPremiumAmount' => '0',
         ];
     }
 
@@ -213,12 +213,12 @@ final class InsuranceClientTest extends TestCase
         return [
             'orderId' => self::ORDER_ID, 'merchantOrderId' => 'ORD-1', 'paymentIntentId' => self::PAYMENT_ID, 'externalPaymentId' => null,
             'insuranceType' => 'TICKET_CANCELLATION', 'connectionId' => self::CONNECTION_ID, 'providerCode' => 'SAMPLE',
-            'premiumCollectedBy' => 'MERCHANT', 'paymentMode' => 'LUNIXI_PAYMENT', 'premiumAmount' => 4900, 'currency' => 'TRY',
+            'premiumCollectedBy' => 'MERCHANT', 'paymentMode' => 'LUNIXI_PAYMENT', 'premiumAmount' => '4900', 'currency' => 'TRY',
             'collectionStatus' => 'COLLECTED', 'policyStatus' => 'ISSUED', 'refundStatus' => 'NONE', 'createdAt' => '2026-01-01T07:00:00.000Z',
             'collectedAt' => '2026-01-01T07:05:00.000Z', 'refundedAt' => null,
             'policies' => [[
                 'policyId' => self::POLICY_ID, 'basketItemId' => 'ticket-1', 'policyNumber' => 'P-1', 'policyStatus' => 'ISSUED',
-                'premiumAmount' => 4900, 'cancelledAt' => null,
+                'premiumAmount' => '4900', 'cancelledAt' => null,
             ]],
         ];
     }
@@ -267,7 +267,7 @@ final class InsuranceClientTest extends TestCase
     /** @return array<string,mixed> */
     private static function externalPayment(): array
     {
-        return ['externalPaymentId' => 'pay-1', 'paidAmount' => 4900, 'paidCurrency' => 'TRY', 'paidAt' => '2026-01-01T07:02:00Z'];
+        return ['externalPaymentId' => 'pay-1', 'paidAmount' => '4900', 'paidCurrency' => 'TRY', 'paidAt' => '2026-01-01T07:02:00Z'];
     }
 
     // ── Signing and routes ────────────────────────────────────────────────────
@@ -408,7 +408,7 @@ final class InsuranceClientTest extends TestCase
             ->pushJson(201, self::envelope($set, ['statusCode' => 201]))
             ->pushJson(201, self::envelope($set, ['statusCode' => 201]));
 
-        $tickets = [['basketItemId' => 'ticket-1', 'transportMode' => 'TRAIN', 'carrier' => 'Sample Rail', 'priceAmount' => 100000]];
+        $tickets = [['basketItemId' => 'ticket-1', 'transportMode' => 'TRAIN', 'carrier' => 'Sample Rail', 'priceAmount' => '100000']];
         $insured = [['identityType' => 'PASSPORT', 'identityNumber' => 'SAMPLE', 'birthDate' => '2000-01-01']];
         $quote = $client->createQuote([
             'insuranceType' => 'TICKET_CANCELLATION', 'currency' => 'try', 'context' => ['items' => [self::ticketItem()]],
@@ -785,7 +785,7 @@ final class InsuranceClientTest extends TestCase
     {
         $item = InsuranceClient::premiumBasketItem(new InsuranceOrder(self::orderJson()), 'Ticket cancellation insurance', 'insurance');
         $this->assertSame([
-            'id' => self::ORDER_ID, 'price' => 4900, 'name' => 'Ticket cancellation insurance', 'category1' => 'insurance', 'itemType' => 'VIRTUAL',
+            'id' => self::ORDER_ID, 'price' => '4900', 'name' => 'Ticket cancellation insurance', 'category1' => 'insurance', 'itemType' => 'VIRTUAL',
         ], $item->toArray());
         $this->assertSame([], array_filter(array_keys($item->toArray()), static fn (string $key): bool => str_starts_with($key, 'insurance')));
         $this->assertSame('x', InsuranceClient::premiumBasketItem(self::orderJson(), 'n', 'c', 'x')->toArray()['category2']);
@@ -793,8 +793,8 @@ final class InsuranceClientTest extends TestCase
         foreach ([
             [self::orderJson(['premiumCollectedBy' => 'PROVIDER']), 'Insurance', 'insurance', 'premiumCollectedBy MERCHANT'],
             [self::orderJson(), '', 'insurance', 'name is required'],
-            [self::orderJson(['premiumAmount' => 0]), 'Insurance', 'insurance', 'premiumAmount'],
-            [self::orderJson(['premiumAmount' => '4900']), 'Insurance', 'insurance', 'premiumAmount'],
+            [self::orderJson(['premiumAmount' => '0']), 'Insurance', 'insurance', 'premiumAmount'],
+            [self::orderJson(['premiumAmount' => 4900]), 'Insurance', 'insurance', 'premiumAmount'],
         ] as [$order, $name, $category, $message]) {
             try {
                 InsuranceClient::premiumBasketItem($order, $name, $category);
@@ -814,7 +814,7 @@ final class InsuranceClientTest extends TestCase
 
         $client->bindPayment(self::ORDER_ID, self::PAYMENT_ID);
         $client->confirmPayment(self::ORDER_ID, [
-            'externalPaymentId' => 'pay-1', 'paidAmount' => 4900, 'paidCurrency' => 'try',
+            'externalPaymentId' => 'pay-1', 'paidAmount' => '4900', 'paidCurrency' => 'try',
             'paidAt' => new DateTimeImmutable('2026-01-01T07:02:00.000Z'), 'paymentProvider' => 'Own POS',
         ], self::KEY);
         $client->refundPremium(self::ORDER_ID, [], self::KEY);
@@ -823,7 +823,7 @@ final class InsuranceClientTest extends TestCase
 
         $this->assertSame(['paymentIntentId' => self::PAYMENT_ID], self::bodyOf($http->calls[0]));
         $this->assertSame(['payment' => [
-            'externalPaymentId' => 'pay-1', 'paidAmount' => 4900, 'paidCurrency' => 'TRY', 'paidAt' => '2026-01-01T07:02:00.000Z', 'paymentProvider' => 'Own POS',
+            'externalPaymentId' => 'pay-1', 'paidAmount' => '4900', 'paidCurrency' => 'TRY', 'paidAt' => '2026-01-01T07:02:00.000Z', 'paymentProvider' => 'Own POS',
         ]], self::bodyOf($http->calls[1]));
         $this->assertSame('{}', $http->calls[2]['body'], 'a Lunixi-payment refund sends the empty JSON object');
         $this->assertSame(['externalRefund' => ['externalRefundId' => 'refund-1', 'refundedAt' => '2026-01-02T07:00:00+03:00']], self::bodyOf($http->calls[3]));
@@ -942,7 +942,7 @@ final class InsuranceClientTest extends TestCase
         $order = $client->getOrder(self::ORDER_ID);
         $this->assertSame(InsuranceOrderStatus::ACTIVE, $order->status());
         $this->assertSame(InsurancePaymentMode::LUNIXI_PAYMENT, $order->paymentMode());
-        $this->assertSame(4900, $order->premiumAmount());
+        $this->assertSame('4900', $order->premiumAmount());
         $this->assertSame(self::PAYMENT_ID, $order->paymentIntentId());
         $this->assertSame(self::CONNECTION_ID, $order->provider()->connectionId());
         $this->assertNull($order->provider()->logoUrl());
@@ -1011,7 +1011,7 @@ final class InsuranceClientTest extends TestCase
         $this->assertSame(['connectionId' => null, 'insuranceType' => 'TICKET_CANCELLATION', 'currency' => null], $summary->filters());
         $group = $summary->groups()[0];
         $this->assertSame('Sample', $group->provider()->name());
-        $this->assertSame(9800, $group->totals()->collectedPremiumAmount());
+        $this->assertSame('9800', $group->totals()->collectedPremiumAmount());
         $this->assertSame(1, $group->totals()->inForcePolicyCount());
     }
 
@@ -1167,7 +1167,7 @@ final class InsuranceClientTest extends TestCase
             'eventId' => $eventId, 'eventType' => 'insurance.policy.failed', 'merchantId' => 'org_1', 'insuranceOrderId' => self::ORDER_ID,
             'paymentIntentId' => self::PAYMENT_ID, 'merchantOrderId' => 'ORD-1', 'insuranceType' => 'TICKET_CANCELLATION',
             'premiumCollectedBy' => 'MERCHANT', 'provider' => self::providerJson(), 'status' => 'FAILED', 'collectionStatus' => 'COLLECTED',
-            'policyStatus' => 'FAILED_FINAL', 'refundStatus' => 'REQUIRED', 'documentStatus' => 'NOT_AVAILABLE', 'premiumAmount' => 4900,
+            'policyStatus' => 'FAILED_FINAL', 'refundStatus' => 'REQUIRED', 'documentStatus' => 'NOT_AVAILABLE', 'premiumAmount' => '4900',
             'currency' => 'TRY',
             'policies' => [[
                 'policyId' => self::POLICY_ID, 'basketItemId' => 'ticket-1', 'policyNumber' => null, 'policyStatus' => 'FAILED_FINAL',

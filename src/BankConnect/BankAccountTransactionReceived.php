@@ -15,7 +15,7 @@ use Lunixi\Sdk\Webhook\WebhookEvent;
  *         $txn = BankAccountTransactionReceived::fromEvent($event);
  *     }
  *
- * Amounts are integers in minor units; `amountMinor` is always positive and
+ * Amounts are canonical integer strings in minor units; `amountMinor` is always positive and
  * `direction` gives the sign. `valueAt`, `description`, the masked
  * counterparty fields and `receiptNo` are null when the bank did not send
  * them. getTransaction($txn->transactionId()) returns the stored transaction
@@ -92,9 +92,9 @@ final class BankAccountTransactionReceived extends BankConnectResource
         return $this->direction() === BankTransactionDirection::CREDIT;
     }
 
-    public function amountMinor(): int
+    public function amountMinor(): string
     {
-        return $this->int('amountMinor');
+        return $this->money('amountMinor');
     }
 
     public function currency(): string

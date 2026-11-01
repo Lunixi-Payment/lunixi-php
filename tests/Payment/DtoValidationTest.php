@@ -22,24 +22,24 @@ final class DtoValidationTest extends TestCase
     public function testCreateIntentRejectsNonPositiveAmount(): void
     {
         $this->expectException(ConfigurationException::class);
-        new CreateIntentRequest(0, 'TRY', 'o1');
+        new CreateIntentRequest('0', 'TRY', 'o1');
     }
 
     public function testCreateIntentRejectsUnsupportedCurrency(): void
     {
         $this->expectException(ConfigurationException::class);
-        new CreateIntentRequest(100, 'XXX', 'o1');
+        new CreateIntentRequest('100', 'XXX', 'o1');
     }
 
     public function testCreateIntentRejectsEmptyOrderId(): void
     {
         $this->expectException(ConfigurationException::class);
-        new CreateIntentRequest(100, 'TRY', '  ');
+        new CreateIntentRequest('100', 'TRY', '  ');
     }
 
     public function testCreateIntentNormalisesCurrencyAndComposesNestedDtos(): void
     {
-        $request = (new CreateIntentRequest(1000, 'eur', 'o1'))
+        $request = (new CreateIntentRequest('1000', 'eur', 'o1'))
             ->withBuyer(new Buyer([
                 'name' => 'Ada', 'surname' => 'L', 'identityNumber' => '11111111111',
                 'email' => 'a@b.co', 'gsmNumber' => '+90555', 'city' => 'Istanbul',
@@ -54,12 +54,12 @@ final class DtoValidationTest extends TestCase
                 'city' => 'Istanbul', 'country' => 'TR',
             ]))
             ->withBasketItems([
-                new BasketItem(['id' => 'i1', 'price' => 1000, 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => BasketItem::TYPE_PHYSICAL]),
+                new BasketItem(['id' => 'i1', 'price' => '1000', 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => BasketItem::TYPE_PHYSICAL]),
             ]);
 
         $body = $request->toArray();
         $this->assertSame('EUR', $body['currency']);
-        $this->assertSame(1000, $body['amount']);
+        $this->assertSame('1000', $body['amount']);
         $this->assertArrayNotHasKey('price', $body);
         $this->assertArrayNotHasKey('paidPrice', $body);
         $this->assertSame('cust-card-1', $body['cardUserKey']);
@@ -68,7 +68,7 @@ final class DtoValidationTest extends TestCase
         $this->assertSame('auto', $body['settings']['threeD']['mode']);
         $this->assertSame('Ada', $body['buyer']['name']);
         $this->assertSame('Street 1', $body['billingAddress']['address']);
-        $this->assertSame(1000, $body['basketItems'][0]['price']);
+        $this->assertSame('1000', $body['basketItems'][0]['price']);
         $this->assertSame('PHYSICAL', $body['basketItems'][0]['itemType']);
     }
 
@@ -87,13 +87,13 @@ final class DtoValidationTest extends TestCase
     public function testBasketItemRejectsNegativePrice(): void
     {
         $this->expectException(ConfigurationException::class);
-        new BasketItem(['id' => 'i1', 'price' => -5, 'name' => 'n', 'category1' => 'c', 'itemType' => 'PHYSICAL']);
+        new BasketItem(['id' => 'i1', 'price' => '-5', 'name' => 'n', 'category1' => 'c', 'itemType' => 'PHYSICAL']);
     }
 
     public function testBasketItemRejectsItemTypeOutsideTheGatewaySet(): void
     {
         $this->expectException(ConfigurationException::class);
-        new BasketItem(['id' => 'i1', 'price' => 100, 'name' => 'n', 'category1' => 'c', 'itemType' => 'DIGITAL']);
+        new BasketItem(['id' => 'i1', 'price' => '100', 'name' => 'n', 'category1' => 'c', 'itemType' => 'DIGITAL']);
     }
 
     public function testBasketItemCopiesTheInsuranceFields(): void
@@ -101,23 +101,23 @@ final class DtoValidationTest extends TestCase
         $context = ['transportMode' => 'TRAIN', 'departureAt' => '2025-12-23T12:50:00+03:00', 'isPromotional' => false];
         $item = new BasketItem([
             'id' => 'item-1',
-            'price' => 100000,
+            'price' => '100000',
             'name' => 'Izmir-Ankara train ticket',
             'category1' => 'ticket',
             'itemType' => BasketItem::TYPE_VIRTUAL,
             'insuranceCategory' => InsuranceItemCategory::TICKET,
             'insuranceTypes' => ['TICKET_CANCELLATION'],
             'insuranceEligible' => true,
-            'insuranceValueAmount' => 100000,
+            'insuranceValueAmount' => '100000',
             'insuranceContext' => $context,
         ]);
 
-        $body = (new CreateIntentRequest(100000, 'TRY', 'o1'))->withBasketItems([$item])->toArray();
+        $body = (new CreateIntentRequest('100000', 'TRY', 'o1'))->withBasketItems([$item])->toArray();
         $sent = $body['basketItems'][0];
         $this->assertSame('TICKET', $sent['insuranceCategory']);
         $this->assertSame(['TICKET_CANCELLATION'], $sent['insuranceTypes']);
         $this->assertTrue($sent['insuranceEligible']);
-        $this->assertSame(100000, $sent['insuranceValueAmount']);
+        $this->assertSame('100000', $sent['insuranceValueAmount']);
         $this->assertSame($context, $sent['insuranceContext']);
         $this->assertSame(
             '{"transportMode":"TRAIN","departureAt":"2025-12-23T12:50:00+03:00","isPromotional":false}',
@@ -134,7 +134,7 @@ final class DtoValidationTest extends TestCase
 
         $context = ['petSpecies' => 'CAT', 'petBreedCode' => 'SAMPLE_BREED'];
         $item = new BasketItem([
-            'id' => 'item-2', 'price' => 50000, 'name' => 'Pet care plan', 'category1' => 'pet', 'itemType' => BasketItem::TYPE_VIRTUAL,
+            'id' => 'item-2', 'price' => '50000', 'name' => 'Pet care plan', 'category1' => 'pet', 'itemType' => BasketItem::TYPE_VIRTUAL,
             'insuranceCategory' => InsuranceItemCategory::PET, 'insuranceContext' => $context,
         ]);
         $sent = $item->toArray();
@@ -145,11 +145,11 @@ final class DtoValidationTest extends TestCase
     public function testBasketItemWithoutInsuranceFieldsIsUnchanged(): void
     {
         $item = new BasketItem([
-            'id' => 'i1', 'price' => 1000, 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => 'PHYSICAL',
+            'id' => 'i1', 'price' => '1000', 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => 'PHYSICAL',
             'insuranceCategory' => null, 'insuranceContext' => [],
         ]);
         $this->assertSame(
-            ['id' => 'i1', 'price' => 1000, 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => 'PHYSICAL'],
+            ['id' => 'i1', 'price' => '1000', 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => 'PHYSICAL'],
             $item->toArray()
         );
     }
@@ -159,18 +159,18 @@ final class DtoValidationTest extends TestCase
         // Synthetic values: a made-up passport number, a sample PNR and ticket number.
         $insuranceData = [
             'insured' => [['identityType' => 'PASSPORT', 'identityNumber' => 'P0000000', 'birthDate' => '2000-01-01', 'email' => 'insured@example.com']],
-            'tickets' => ['carrier' => 'Sample Rail', 'priceAmount' => 100000, 'pnr' => 'SAMPLE1', 'ticketNumber' => 'SAMPLE-0001'],
+            'tickets' => ['carrier' => 'Sample Rail', 'priceAmount' => '100000', 'pnr' => 'SAMPLE1', 'ticketNumber' => 'SAMPLE-0001'],
         ];
         $item = new BasketItem([
-            'id' => 'item-1', 'price' => 100000, 'name' => 'Izmir-Ankara train ticket', 'category1' => 'ticket',
+            'id' => 'item-1', 'price' => '100000', 'name' => 'Izmir-Ankara train ticket', 'category1' => 'ticket',
             'itemType' => BasketItem::TYPE_VIRTUAL, 'insuranceCategory' => InsuranceItemCategory::TICKET,
             'insuranceTypes' => ['TICKET_CANCELLATION'], 'insuranceData' => $insuranceData,
         ]);
 
-        $sent = (new CreateIntentRequest(100000, 'TRY', 'o1'))->withBasketItems([$item])->toArray()['basketItems'][0];
+        $sent = (new CreateIntentRequest('100000', 'TRY', 'o1'))->withBasketItems([$item])->toArray()['basketItems'][0];
         $this->assertSame($insuranceData, $sent['insuranceData']);
         $this->assertSame(
-            '{"carrier":"Sample Rail","priceAmount":100000,"pnr":"SAMPLE1","ticketNumber":"SAMPLE-0001"}',
+            '{"carrier":"Sample Rail","priceAmount":"100000","pnr":"SAMPLE1","ticketNumber":"SAMPLE-0001"}',
             json_encode($sent['insuranceData']['tickets']),
             'tickets is one object for the item'
         );
@@ -184,7 +184,7 @@ final class DtoValidationTest extends TestCase
             'event', 'accident', 'procedure', 'pet', 'residence', 'abroadStay', 'property', 'health',
         ], BasketItem::INSURANCE_DATA_TYPE_ROOTS, 'the type roots of the gateway (insurance-data-fields.ts)');
         $all = new BasketItem([
-            'id' => 'item-2', 'price' => 1000, 'name' => 'n', 'category1' => 'c', 'itemType' => 'VIRTUAL',
+            'id' => 'item-2', 'price' => '1000', 'name' => 'n', 'category1' => 'c', 'itemType' => 'VIRTUAL',
             'insuranceCategory' => InsuranceItemCategory::TRAVEL, 'insuranceData' => ['policyholder' => ['firstName' => 'Sample']] + $everyRoot,
         ]);
         $this->assertSame(array_merge(['policyholder'], BasketItem::INSURANCE_DATA_TYPE_ROOTS), array_keys($all->toArray()['insuranceData']));
@@ -192,7 +192,7 @@ final class DtoValidationTest extends TestCase
 
     public function testBasketItemLeavesOutAnEmptyOrNullInsuranceData(): void
     {
-        $base = ['id' => 'i1', 'price' => 1000, 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => 'PHYSICAL'];
+        $base = ['id' => 'i1', 'price' => '1000', 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => 'PHYSICAL'];
         foreach ([null, [], ['tickets' => null]] as $insuranceData) {
             $this->assertSame($base, (new BasketItem($base + ['insuranceData' => $insuranceData]))->toArray());
         }
@@ -207,7 +207,7 @@ final class DtoValidationTest extends TestCase
     {
         try {
             new BasketItem([
-                'id' => 'i1', 'price' => 1000, 'name' => 'n', 'category1' => 'c', 'itemType' => 'VIRTUAL',
+                'id' => 'i1', 'price' => '1000', 'name' => 'n', 'category1' => 'c', 'itemType' => 'VIRTUAL',
                 'insuranceCategory' => InsuranceItemCategory::TICKET,
                 'insuranceData' => ['insured' => [['identityNumber' => 'P0000000', 'email' => null]]],
             ]);
@@ -221,7 +221,7 @@ final class DtoValidationTest extends TestCase
     public function testBasketItemAcceptsInsuranceEligibleFalseAlone(): void
     {
         $item = new BasketItem([
-            'id' => 'i1', 'price' => 1000, 'name' => 'Gift card', 'category1' => 'Cat', 'itemType' => 'VIRTUAL',
+            'id' => 'i1', 'price' => '1000', 'name' => 'Gift card', 'category1' => 'Cat', 'itemType' => 'VIRTUAL',
             'insuranceEligible' => false,
         ]);
         $this->assertFalse($item->toArray()['insuranceEligible']);
@@ -235,7 +235,7 @@ final class DtoValidationTest extends TestCase
         return [
             'unknown category' => [['insuranceCategory' => 'CAR']],
             'types without category' => [['insuranceTypes' => ['TICKET_CANCELLATION']]],
-            'value without category' => [['insuranceValueAmount' => 1000]],
+            'value without category' => [['insuranceValueAmount' => '1000']],
             'context without category' => [['insuranceContext' => ['transportMode' => 'BUS']]],
             'type code format' => [['insuranceCategory' => 'TICKET', 'insuranceTypes' => ['ticket_cancellation']]],
             'repeated type code' => [['insuranceCategory' => 'TICKET', 'insuranceTypes' => ['TICKET_CANCELLATION', 'TICKET_CANCELLATION']]],
@@ -245,7 +245,7 @@ final class DtoValidationTest extends TestCase
             )]],
             'types not a list' => [['insuranceCategory' => 'TICKET', 'insuranceTypes' => 'TICKET_CANCELLATION']],
             'eligible as string' => [['insuranceEligible' => 'false']],
-            'zero value' => [['insuranceCategory' => 'DEVICE', 'insuranceValueAmount' => 0]],
+            'zero value' => [['insuranceCategory' => 'DEVICE', 'insuranceValueAmount' => '0']],
             'value as float' => [['insuranceCategory' => 'DEVICE', 'insuranceValueAmount' => 10.5]],
             'context as list' => [['insuranceCategory' => 'TICKET', 'insuranceContext' => ['BUS']]],
             'data without category' => [['insuranceData' => ['tickets' => ['pnr' => 'SAMPLE1']]]],
@@ -270,13 +270,13 @@ final class DtoValidationTest extends TestCase
     public function testBasketItemRejectsInvalidInsuranceFields(array $fields): void
     {
         $this->expectException(ConfigurationException::class);
-        new BasketItem(['id' => 'i1', 'price' => 1000, 'name' => 'n', 'category1' => 'c', 'itemType' => 'VIRTUAL'] + $fields);
+        new BasketItem(['id' => 'i1', 'price' => '1000', 'name' => 'n', 'category1' => 'c', 'itemType' => 'VIRTUAL'] + $fields);
     }
 
     public function testDirectPaymentRequestMapsBackendProcessPaymentDto(): void
     {
         $request = (new DirectPaymentRequest(
-            1000,
+            '1000',
             'try',
             'o1',
             new CardDetails([
@@ -297,7 +297,7 @@ final class DtoValidationTest extends TestCase
                 'city' => 'Istanbul', 'country' => 'TR',
             ]),
             [
-                new BasketItem(['id' => 'i1', 'price' => 1000, 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => BasketItem::TYPE_PHYSICAL]),
+                new BasketItem(['id' => 'i1', 'price' => '1000', 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => BasketItem::TYPE_PHYSICAL]),
             ]
         ))
             ->withInstallment(3, 'iq_1')
@@ -306,7 +306,7 @@ final class DtoValidationTest extends TestCase
             ->withMetadata(['order' => 'o1']);
 
         $body = $request->toArray();
-        $this->assertSame(1000, $body['amount']);
+        $this->assertSame('1000', $body['amount']);
         $this->assertArrayNotHasKey('paidPrice', $body);
         $this->assertSame('TRY', $body['currency']);
         $this->assertSame(3, $body['installment']);
@@ -322,7 +322,7 @@ final class DtoValidationTest extends TestCase
     {
         $this->expectException(ConfigurationException::class);
         new DirectPaymentRequest(
-            1000,
+            '1000',
             'TRY',
             'o1',
             new CardDetails(['cardNumber' => '5400000000000004']),
@@ -341,12 +341,12 @@ final class DtoValidationTest extends TestCase
 
     public function testInstallmentAndStoreCardRequestsMapBackendDtos(): void
     {
-        $installments = (new InstallmentOptionsRequest(1000, 'TRY'))
+        $installments = (new InstallmentOptionsRequest('1000', 'TRY'))
             ->withBinOrPan('54000000')
             ->withInstallment(3)
             ->withFormat('data')
             ->toArray();
-        $this->assertSame(1000, $installments['amount']);
+        $this->assertSame('1000', $installments['amount']);
         $this->assertSame('54000000', $installments['binOrPan']);
         $this->assertSame(3, $installments['installment']);
 

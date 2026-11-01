@@ -13,6 +13,7 @@ final class PromissoryNote
     /** @param array<string,mixed> $data */
     public function __construct(array $data)
     {
+        \Lunixi\Sdk\Commerce\MoneyPayload::validate($data);
         $this->data = $data;
     }
 
@@ -28,9 +29,9 @@ final class PromissoryNote
     }
 
     /** Minor units. */
-    public function amount(): int
+    public function amount(): string
     {
-        return (int) ($this->data['amount'] ?? 0);
+        return \Lunixi\Sdk\Commerce\Money::integer($this->data['amount'] ?? '0');
     }
 
     /** `YYYY-MM-DD`. */

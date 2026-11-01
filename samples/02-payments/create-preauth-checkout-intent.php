@@ -12,7 +12,7 @@ require_once __DIR__ . '/../_common/bootstrap.php';
 
 $client = sample_client();
 
-$request = (new CreateIntentRequest(10050, 'TRY', 'ORD-PRE-' . date('YmdHis')))
+$request = (new CreateIntentRequest('10050', 'TRY', 'ORD-PRE-' . date('YmdHis')))
     ->withPreauth(true)
     ->withCallbackUrl(sample_env('LUNIXI_CALLBACK_URL', 'https://merchant.example.com/payments/lunixi/callback'))
     ->withCustomerId(sample_env('LUNIXI_CUSTOMER_ID', 'cust_demo_001'))
@@ -20,7 +20,7 @@ $request = (new CreateIntentRequest(10050, 'TRY', 'ORD-PRE-' . date('YmdHis')))
     ->withPaymentChannel('WEB')
     ->withBuyer(sample_buyer())
     ->withBillingAddress(sample_billing_address())
-    ->withBasketItems(sample_basket_items(10050));
+    ->withBasketItems(sample_basket_items('10050'));
 
 $intent = $client->payments()->createIntent($request, sample_idempotency_key('preauth-intent'));
 

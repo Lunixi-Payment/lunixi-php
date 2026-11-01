@@ -17,6 +17,8 @@ use Lunixi\Sdk\Kyc\KycClient;
 use Lunixi\Sdk\Marketplace\MarketplaceClient;
 use Lunixi\Sdk\Payment\PaymentClient;
 use Lunixi\Sdk\Payment\PaymentLinkClient;
+use Lunixi\Sdk\PhysicalPos\PhysicalPosClient;
+use Lunixi\Sdk\PhysicalPos\PhysicalPosManagementClient;
 use Lunixi\Sdk\Reference\ReferenceClient;
 use Lunixi\Sdk\Sanction\SanctionClient;
 use Lunixi\Sdk\Subscription\SubscriptionClient;
@@ -56,6 +58,8 @@ final class LunixiClient
     private BankConnectClient $bankConnect;
     private ReferenceClient $reference;
     private InsuranceClient $insurance;
+    private PhysicalPosClient $physicalPos;
+    private PhysicalPosManagementClient $physicalPosManagement;
     private WebhookVerifier $webhooks;
 
     public function __construct(
@@ -82,6 +86,8 @@ final class LunixiClient
         $this->bankConnect = new BankConnectClient($this->api);
         $this->reference = new ReferenceClient($this->api);
         $this->insurance = new InsuranceClient($this->api);
+        $this->physicalPos = new PhysicalPosClient($this->api);
+        $this->physicalPosManagement = new PhysicalPosManagementClient($this->api);
         $this->webhooks = new WebhookVerifier();
     }
 
@@ -193,6 +199,25 @@ final class LunixiClient
     public function insurance(): InsuranceClient
     {
         return $this->insurance;
+    }
+
+    /**
+     * Physical POS (`/api/v1/physical-pos`, product PHYSICAL_POS): card
+     * payments on your POS devices, reversals, transactions, reports and
+     * end-of-day results; physical_pos.* webhooks via parseWebhookEvent().
+     */
+    public function physicalPos(): PhysicalPosClient
+    {
+        return $this->physicalPos;
+    }
+
+    /**
+     * Physical POS management: overview, catalog, stores, registers, logical
+     * terminals (bank rows, device link) and devices.
+     */
+    public function physicalPosManagement(): PhysicalPosManagementClient
+    {
+        return $this->physicalPosManagement;
     }
 
     public function webhooks(): WebhookVerifier

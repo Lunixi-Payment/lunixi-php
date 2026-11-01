@@ -65,7 +65,7 @@ final class AmountContractTest extends TestCase
         ]);
     }
 
-    private static function direct(int $amount = 10050): DirectPaymentRequest
+    private static function direct(string $amount = '10050'): DirectPaymentRequest
     {
         return new DirectPaymentRequest(
             $amount,
@@ -82,11 +82,11 @@ final class AmountContractTest extends TestCase
                 'city' => 'Istanbul', 'country' => 'TR',
             ]),
             // The item is valid for any amount: an invalid `amount` must be refused by the request itself.
-            [self::basketItem(max(0, $amount))]
+            [self::basketItem($amount[0] === '-' ? '0' : $amount)]
         );
     }
 
-    private static function basketItem(int $price): BasketItem
+    private static function basketItem(string $price): BasketItem
     {
         return new BasketItem(['id' => 'SKU-001', 'price' => $price, 'name' => 'Demo Product', 'category1' => 'Demo', 'itemType' => BasketItem::TYPE_PHYSICAL]);
     }
@@ -104,22 +104,22 @@ final class AmountContractTest extends TestCase
     public function testEveryBuilderSendsAmountAndNeverPriceOrPaidPrice(): void
     {
         $bodies = [
-            'intent' => (new CreateIntentRequest(10050, 'TRY', 'ORD-AMT-1'))
-                ->withBasketItems([self::basketItem(10050)])
+            'intent' => (new CreateIntentRequest('10050', 'TRY', 'ORD-AMT-1'))
+                ->withBasketItems([self::basketItem('10050')])
                 ->toArray(),
             'direct' => self::direct()->toArray(),
-            'method card' => (new DirectMethodPaymentRequest(10050, 'TRY', 'ORD-AMT-1'))->withCard(self::card())->toArray(),
-            'method mobile billing' => (new DirectMethodPaymentRequest(10050, 'TRY', 'ORD-AMT-1'))
+            'method card' => (new DirectMethodPaymentRequest('10050', 'TRY', 'ORD-AMT-1'))->withCard(self::card())->toArray(),
+            'method mobile billing' => (new DirectMethodPaymentRequest('10050', 'TRY', 'ORD-AMT-1'))
                 ->withMethodFields(PaymentMethod::MOBILE_BILLING, null, ['gsmNumber' => '+905321234567'])
                 ->toArray(),
         ];
 
         foreach ($bodies as $label => $body) {
-            $this->assertSame(10050, $body['amount'], $label);
+            $this->assertSame('10050', $body['amount'], $label);
             self::assertNoRemovedAmountField($body, $label);
         }
-        $this->assertSame(10050, $bodies['intent']['basketItems'][0]['price'], 'a basket item keeps its own price');
-        $this->assertSame(10050, $bodies['direct']['basketItems'][0]['price'], 'a basket item keeps its own price');
+        $this->assertSame('10050', $bodies['intent']['basketItems'][0]['price'], 'a basket item keeps its own price');
+        $this->assertSame('10050', $bodies['direct']['basketItems'][0]['price'], 'a basket item keeps its own price');
     }
 
     public function testTheRemovedAmountSettersAreGone(): void
@@ -136,11 +136,11 @@ final class AmountContractTest extends TestCase
     /** @return array<string,array{0:int}> */
     public static function nonPositiveAmounts(): array
     {
-        return ['zero' => [0], 'negative' => [-1], 'large negative' => [PHP_INT_MIN]];
+        return ['zero' => ['0'], 'negative' => ['-1'], 'large negative' => ['-9223372036854775808']];
     }
 
     #[DataProvider('nonPositiveAmounts')]
-    public function testAmountIsAtLeastOneMinorUnitOnEveryBuilder(int $amount): void
+    public function testAmountIsAtLeastOneMinorUnitOnEveryBuilder(string $amount): void
     {
         $builders = [
             'CreateIntentRequest' => static fn () => new CreateIntentRequest($amount, 'TRY', 'O'),
@@ -152,17 +152,17 @@ final class AmountContractTest extends TestCase
                 $build();
                 $this->fail($name . ' accepted amount ' . $amount);
             } catch (ConfigurationException $e) {
-                $this->assertStringContainsString("'amount'", $e->getMessage(), $name);
+                $this->assertStringContainsString("amount", $e->getMessage(), $name);
             }
         }
-        $this->assertSame(1, (new CreateIntentRequest(1, 'TRY', 'O'))->toArray()['amount'], 'one minor unit is the smallest amount');
+        $this->assertSame('1', (new CreateIntentRequest('1', 'TRY', 'O'))->toArray()['amount'], 'one minor unit is the smallest amount');
     }
 
     public function testMarketplaceChargeBaseCarriesInstallmentAndTheQuoteToken(): void
     {
-        $body = self::direct(15000)->withInstallment(3, 'iq_1')->toArray();
+        $body = self::direct('15000')->withInstallment(3, 'iq_1')->toArray();
 
-        $this->assertSame(15000, $body['amount'], 'amount stays the basket total; the system adds the installment fee');
+        $this->assertSame('15000', $body['amount'], 'amount stays the basket total; the system adds the installment fee');
         $this->assertSame(3, $body['installment']);
         $this->assertSame('iq_1', $body['installmentQuoteToken']);
 
@@ -213,9 +213,9 @@ final class AmountContractTest extends TestCase
     public static function removedFields(): array
     {
         return [
-            'price' => [['price' => 10050]],
+            'price' => [['price' => '10050']],
             'paidPrice' => [['paidPrice' => 10050]],
-            'both' => [['price' => 10050, 'paidPrice' => 10050]],
+            'both' => [['price' => '10050', 'paidPrice' => 10050]],
             'null paidPrice' => [['paidPrice' => null]],
             'text price' => [['price' => '10050']],
         ];
@@ -229,7 +229,7 @@ final class AmountContractTest extends TestCase
         $payments = new PaymentClient($api);
         $marketplace = new MarketplaceClient($api);
         $sellers = [['subDealerId' => 'd_1', 'amountMinor' => '10050']];
-        $intent = (new CreateIntentRequest(10050, 'TRY', 'ORD-AMT-1'))->toArray() + ['sellers' => $sellers];
+        $intent = (new CreateIntentRequest('10050', 'TRY', 'ORD-AMT-1'))->toArray() + ['sellers' => $sellers];
         $direct = self::direct()->toArray();
 
         $sends = [
@@ -258,8 +258,8 @@ final class AmountContractTest extends TestCase
             $http->pushJson(200, ['success' => true, 'data' => ['paymentId' => 'pi_' . $i]]);
         }
 
-        $payments->createMarketplaceIntent((new CreateIntentRequest(10050, 'TRY', 'ORD-AMT-1'))->toArray() + ['sellers' => $sellers], 'k-mp');
-        $marketplace->chargeMarketplaceCard2d(self::direct(), [new MarketplaceSeller('d_1', 10050)], MarketplaceClient::POLICY_ALL_OR_NOTHING, 'k-mp-2d');
+        $payments->createMarketplaceIntent((new CreateIntentRequest('10050', 'TRY', 'ORD-AMT-1'))->toArray() + ['sellers' => $sellers], 'k-mp');
+        $marketplace->chargeMarketplaceCard2d(self::direct(), [new MarketplaceSeller('d_1', '10050')], MarketplaceClient::POLICY_ALL_OR_NOTHING, 'k-mp-2d');
 
         $paths = array_map(static fn (array $call): string => (string) parse_url($call['url'], PHP_URL_PATH), $http->calls);
         $this->assertSame([
@@ -268,7 +268,7 @@ final class AmountContractTest extends TestCase
         ], $paths);
         foreach ($http->calls as $call) {
             $body = json_decode((string) $call['body'], true);
-            $this->assertSame(10050, $body['amount']);
+            $this->assertSame('10050', $body['amount']);
             self::assertNoRemovedAmountField($body, (string) $call['url']);
         }
         $marketplaceCharge = json_decode((string) $http->lastCall()['body'], true);

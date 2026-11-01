@@ -11,14 +11,14 @@ use Lunixi\Sdk\Exception\ConfigurationException;
 /**
  * Builds the body of `POST /api/v1/payments/links`.
  *
- * Amounts are integers in the currency's minor unit (ISO 4217 exponent):
+ * Amounts are canonical integer strings in the currency's minor unit (ISO 4217 exponent):
  * 150000 is 1,500.00 TRY. `usage`, `amountMode` and `currency` are fixed at
  * creation. This builder checks types and closed value sets; the business rules
  * (title length, amount ranges, which fields a mode allows) are enforced by the
  * server, which answers 422 `payment_link.validation.invalid` with
  * `details.errors[{field, reason}]`.
  *
- *   $request = CreatePaymentLinkRequest::fixed(PaymentLinkUsage::SINGLE_USE, 150000, 'TRY', 'Consulting fee')
+ *   $request = CreatePaymentLinkRequest::fixed(PaymentLinkUsage::SINGLE_USE, '150000', 'TRY', 'Consulting fee')
  *       ->withExpiresAt(new DateTimeImmutable('+14 days'))
  *       ->withReference('INV-2026-0042')
  *       ->withRecipient(['email' => 'buyer@example.com']);
@@ -72,12 +72,6 @@ final class CreatePaymentLinkRequest
     /** Fields that carry an ISO-8601 time. */
     public const TIME_FIELDS = ['startsAt', 'expiresAt', 'eventAt'];
 
-    /**
-     * Largest integer a JSON number keeps exactly on the gateway (2^53 - 1). A
-     * larger amount would be rounded when the gateway parses the body, and the
-     * request would fail its Digest check.
-     */
-    private const MAX_SAFE_INTEGER = 9007199254740991;
 
     /**
      * @internal Shared with PaymentLinkClient.
@@ -108,8 +102,11 @@ final class CreatePaymentLinkRequest
         ];
     }
 
-    /** A link for a set amount. */
-    public static function fixed(string $usage, int $amountMinor, string $currency, string $title): self
+    /**
+     * A link for a set amount.
+     * @param mixed $amountMinor Canonical money string; other types are rejected before coercion.
+     */
+    public static function fixed(string $usage, $amountMinor, string $currency, string $title): self
     {
         return (new self($usage, PaymentLinkAmountMode::FIXED, $currency, $title))->withAmountMinor($amountMinor);
     }
@@ -119,14 +116,16 @@ final class CreatePaymentLinkRequest
      * `minAmountMinor` is required; `maxAmountMinor` and up to six ascending
      * suggested amounts are optional.
      *
-     * @param int[] $suggestedAmountsMinor
+     * @param string[] $suggestedAmountsMinor
+     * @param mixed $minAmountMinor Canonical money string; other types are rejected before coercion.
+     * @param mixed $maxAmountMinor Canonical money string; other types are rejected before coercion.
      */
     public static function open(
         string $usage,
         string $currency,
         string $title,
-        int $minAmountMinor,
-        ?int $maxAmountMinor = null,
+        $minAmountMinor,
+        $maxAmountMinor = null,
         array $suggestedAmountsMinor = []
     ): self {
         $request = (new self($usage, PaymentLinkAmountMode::OPEN, $currency, $title))->withMinAmountMinor($minAmountMinor);
@@ -161,31 +160,40 @@ final class CreatePaymentLinkRequest
         return $this;
     }
 
-    public function withAmountMinor(int $amountMinor): self
+    /**
+     * @param mixed $amountMinor Canonical money string; other types are rejected before coercion.
+     */
+    public function withAmountMinor($amountMinor): self
     {
         $this->payload['amountMinor'] = self::positiveMinor($amountMinor, 'amountMinor');
         return $this;
     }
 
-    public function withMinAmountMinor(int $minAmountMinor): self
+    /**
+     * @param mixed $minAmountMinor Canonical money string; other types are rejected before coercion.
+     */
+    public function withMinAmountMinor($minAmountMinor): self
     {
         $this->payload['minAmountMinor'] = self::positiveMinor($minAmountMinor, 'minAmountMinor');
         return $this;
     }
 
-    public function withMaxAmountMinor(int $maxAmountMinor): self
+    /**
+     * @param mixed $maxAmountMinor Canonical money string; other types are rejected before coercion.
+     */
+    public function withMaxAmountMinor($maxAmountMinor): self
     {
         $this->payload['maxAmountMinor'] = self::positiveMinor($maxAmountMinor, 'maxAmountMinor');
         return $this;
     }
 
-    /** @param int[] $amountsMinor Up to six, ascending, within [min, max]. */
+    /** @param string[] $amountsMinor Up to six, ascending, within [min, max]. */
     public function withSuggestedAmountsMinor(array $amountsMinor): self
     {
         $values = [];
         foreach ($amountsMinor as $amount) {
-            if (!is_int($amount)) {
-                throw new ConfigurationException("'suggestedAmountsMinor' must be integers in minor units.");
+            if (!is_string($amount)) {
+                throw new ConfigurationException("'suggestedAmountsMinor' must be canonical integer strings in minor units.");
             }
             $values[] = self::positiveMinor($amount, 'suggestedAmountsMinor');
         }
@@ -483,7 +491,7 @@ final class CreatePaymentLinkRequest
     }
 
     /**
-     * @param DateTimeInterface|string|null $value
+     * @param mixed $value
      */
     public static function isoTime($value, string $field): ?string
     {
@@ -520,13 +528,13 @@ final class CreatePaymentLinkRequest
         }
     }
 
-    /** @internal Shared with PaymentLinkItem. */
-    public static function positiveMinor(int $value, string $field): int
+    /**
+     * @internal Shared with PaymentLinkItem.
+     * @param mixed $value Canonical money string; other types are rejected before coercion.
+     */
+    public static function positiveMinor($value, string $field): string
     {
-        if ($value < 1 || $value > self::MAX_SAFE_INTEGER) {
-            throw new ConfigurationException("'{$field}' must be a positive integer in minor units (150000 = 1,500.00 TRY).");
-        }
-        return $value;
+        return \Lunixi\Sdk\Commerce\Money::positive($value, $field);
     }
 
     /**

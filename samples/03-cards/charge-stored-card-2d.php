@@ -11,7 +11,7 @@ require_once __DIR__ . '/../_common/bootstrap.php';
 // cardToken in the card block. Without withForce3D() it is charged without
 // 3D Secure; the bank may still ask for it (the response then carries a
 // REDIRECT action).
-$amount = 10050;
+$amount = '10050';
 $request = (new DirectMethodPaymentRequest($amount, 'TRY', 'ORD-STORED-CARD-' . date('YmdHis')))
     ->withCard(new CardDetails([
         'cardUserKey' => sample_env('LUNIXI_CARD_USER_KEY', 'cust_demo_001'),

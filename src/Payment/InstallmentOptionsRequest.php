@@ -12,12 +12,13 @@ final class InstallmentOptionsRequest
     /** @var array<string,mixed> */
     private array $data = [];
 
-    public function __construct(?int $amount = null, ?string $currency = null, ?string $intentId = null)
+    /**
+     * @param mixed $amount Canonical money string; other types are rejected before coercion.
+     */
+    public function __construct($amount = null, ?string $currency = null, ?string $intentId = null)
     {
         if ($amount !== null) {
-            if ($amount < 1) {
-                throw new ConfigurationException("Installment amount must be a positive minor-unit integer.");
-            }
+            \Lunixi\Sdk\Commerce\Money::positive($amount);
             $this->data['amount'] = $amount;
         }
         if ($currency !== null && $currency !== '') {

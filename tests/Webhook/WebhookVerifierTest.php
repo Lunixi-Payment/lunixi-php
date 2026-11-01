@@ -159,7 +159,7 @@ final class WebhookVerifierTest extends TestCase
     public function testAcceptsAValidSignature(): void
     {
         $secret = 'whsec_test_123';
-        $body = '{"id":"evt_1","type":"payment.captured","data":{"intentId":"pi_1","amount":1000,"currency":"TRY"}}';
+        $body = '{"id":"evt_1","type":"payment.captured","data":{"intentId":"pi_1","amount":"1000","currency":"TRY"}}';
         $timestamp = gmdate('Y-m-d\TH:i:s\Z');
 
         $headers = self::sign($body, 'evt_1', $timestamp, $secret);
@@ -177,12 +177,12 @@ final class WebhookVerifierTest extends TestCase
     public function testRejectsTamperedBody(): void
     {
         $secret = 'whsec_x';
-        $body = '{"amount":1000}';
+        $body = '{"amount":"1000"}';
         $ts = gmdate('Y-m-d\TH:i:s\Z');
         $headers = self::sign($body, 'evt_2', $ts, $secret);
 
         $this->expectException(WebhookVerificationException::class);
-        (new WebhookVerifier())->verify('{"amount":9999}', $headers, $secret);
+        (new WebhookVerifier())->verify('{"amount":"9999"}', $headers, $secret);
     }
 
     public function testRejectsWrongSecret(): void

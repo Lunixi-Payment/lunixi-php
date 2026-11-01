@@ -43,11 +43,12 @@ final class DirectMethodPaymentRequest
     /** @var array<string,mixed>|null Senetle Ödeme plan: ['schedule' => rows] or ['noteCount' => '3']. */
     private ?array $promissoryNotePlan = null;
 
-    public function __construct(int $amount, string $currency, string $orderId)
+    /**
+     * @param mixed $amount Canonical money string; other types are rejected before coercion.
+     */
+    public function __construct($amount, string $currency, string $orderId)
     {
-        if ($amount < 1) {
-            throw new ConfigurationException("DirectMethodPaymentRequest 'amount' must be a positive integer (minor units).");
-        }
+        \Lunixi\Sdk\Commerce\Money::positive($amount);
         $currency = strtoupper($currency);
         if (!Currency::isSupported($currency)) {
             throw new ConfigurationException("Unsupported currency '{$currency}'.");
@@ -109,12 +110,12 @@ final class DirectMethodPaymentRequest
     /**
      * Senetle Ödeme plan, one note per row:
      * `[['amount' => 100000, 'dueDate' => '2030-01-15'], …]`. Amounts are
-     * positive integers in minor units adding up to `amount`; due dates are
+     * positive integer strings in minor units adding up to `amount`; due dates are
      * `YYYY-MM-DD` (Istanbul calendar), after today, in ascending order, at
      * most 24 rows. Use with withMethodFields(PaymentMethod::PROMISSORY_NOTE, …);
      * replaces a note count.
      *
-     * @param list<array{amount:int,dueDate:string}> $schedule
+     * @param list<array{amount:string,dueDate:string}> $schedule
      */
     public function withPromissoryNoteSchedule(array $schedule): self
     {
@@ -278,7 +279,7 @@ final class DirectMethodPaymentRequest
                 }
                 $block += $this->promissoryNotePlan;
             }
-            PromissoryNotePlan::assertBlock($block, (int) $this->data['amount']);
+            PromissoryNotePlan::assertBlock($block, $this->data['amount']);
         } elseif ($this->promissoryNotePlan !== null) {
             throw new ConfigurationException('A promissory-note plan can only be sent with paymentMethod PROMISSORY_NOTE.');
         }

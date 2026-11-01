@@ -19,6 +19,7 @@ final class SplitPaymentStep
     /** @param array<string,mixed> $data */
     public function __construct(array $data)
     {
+        \Lunixi\Sdk\Commerce\MoneyPayload::validate($data);
         $this->data = $data;
     }
 
@@ -63,9 +64,9 @@ final class SplitPaymentStep
     }
 
     /** Leg amount in minor units. */
-    public function amount(): ?int
+    public function amount(): ?string
     {
-        return isset($this->data['amount']) ? (int) $this->data['amount'] : null;
+        return isset($this->data['amount']) ? \Lunixi\Sdk\Commerce\Money::integer($this->data['amount']) : null;
     }
 
     /** Leg status (PENDING, AUTHORIZING, AWAITING_3DS, AWAITING_ACTION, AUTHORIZED, CAPTURED, VOIDED, REFUNDED, COMPENSATING, FAILED). */

@@ -41,8 +41,8 @@ final class PromissoryNoteTest extends TestCase
     private const PAYMENT_ID = '7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
 
     private const SCHEDULE = [
-        ['amount' => 100000, 'dueDate' => '2030-01-15'],
-        ['amount' => 200000, 'dueDate' => '2030-02-15'],
+        ['amount' => '100000', 'dueDate' => '2030-01-15'],
+        ['amount' => '200000', 'dueDate' => '2030-02-15'],
     ];
 
     /** @return array<string,mixed> Provider-declared debtor fields; test values only. */
@@ -79,7 +79,7 @@ final class PromissoryNoteTest extends TestCase
 
     private function promissoryRequest(): DirectMethodPaymentRequest
     {
-        return (new DirectMethodPaymentRequest(300000, 'TRY', 'ORD-PN-1'))
+        return (new DirectMethodPaymentRequest('300000', 'TRY', 'ORD-PN-1'))
             ->withMethodFields(PaymentMethod::PROMISSORY_NOTE, null, self::debtor())
             ->withPromissoryNoteSchedule(self::SCHEDULE);
     }
@@ -96,10 +96,10 @@ final class PromissoryNoteTest extends TestCase
                 'documentType' => 'PROMISSORY_NOTE',
                 'rowSerialNumber' => 'ROW-0001',
                 'currency' => 'TRY',
-                'totalAmount' => 300000,
+                'totalAmount' => '300000',
                 'notes' => [
-                    ['serialNumber' => 'NOTE-0001', 'sequence' => 1, 'amount' => 100000, 'dueDate' => '2030-01-15', 'status' => 'ISSUED', 'paidAt' => null, 'protestedAt' => null, 'cancelledAt' => null],
-                    ['serialNumber' => 'NOTE-0002', 'sequence' => 2, 'amount' => 200000, 'dueDate' => '2030-02-15', 'status' => 'PAID', 'paidAt' => '2030-02-16T09:00:00.000Z', 'protestedAt' => null, 'cancelledAt' => null],
+                    ['serialNumber' => 'NOTE-0001', 'sequence' => 1, 'amount' => '100000', 'dueDate' => '2030-01-15', 'status' => 'ISSUED', 'paidAt' => null, 'protestedAt' => null, 'cancelledAt' => null],
+                    ['serialNumber' => 'NOTE-0002', 'sequence' => 2, 'amount' => '200000', 'dueDate' => '2030-02-15', 'status' => 'PAID', 'paidAt' => '2030-02-16T09:00:00.000Z', 'protestedAt' => null, 'cancelledAt' => null],
                 ],
             ], $extra),
         ];
@@ -142,7 +142,7 @@ final class PromissoryNoteTest extends TestCase
 
         $this->assertSame([
             'paymentMethod' => 'PROMISSORY_NOTE',
-            'amount' => 300000,
+            'amount' => '300000',
             'currency' => 'TRY',
             'orderId' => 'ORD-PN-1',
             'promissoryNote' => self::debtor() + ['schedule' => self::SCHEDULE],
@@ -154,14 +154,14 @@ final class PromissoryNoteTest extends TestCase
 
     public function testANoteCountIsSentAsAStringAfterTheProviderCode(): void
     {
-        $body = (new DirectMethodPaymentRequest(300000, 'TRY', 'ORD-PN-2'))
+        $body = (new DirectMethodPaymentRequest('300000', 'TRY', 'ORD-PN-2'))
             ->withMethodFields(PaymentMethod::PROMISSORY_NOTE, 'TEST_PROVIDER', ['debtorType' => 'INDIVIDUAL'])
             ->withPromissoryNoteCount(3)
             ->toArray();
 
         $this->assertSame(['providerCode' => 'TEST_PROVIDER', 'debtorType' => 'INDIVIDUAL', 'noteCount' => '3'], $body['promissoryNote']);
 
-        $fromFields = (new DirectMethodPaymentRequest(300000, 'TRY', 'ORD-PN-3'))
+        $fromFields = (new DirectMethodPaymentRequest('300000', 'TRY', 'ORD-PN-3'))
             ->withMethodFields(PaymentMethod::PROMISSORY_NOTE, null, ['noteCount' => 2])
             ->toArray();
         $this->assertSame(['noteCount' => '2'], $fromFields['promissoryNote']);
@@ -172,7 +172,7 @@ final class PromissoryNoteTest extends TestCase
         $this->expectException(ConfigurationException::class);
         $this->expectExceptionMessage('needs the plan');
 
-        (new DirectMethodPaymentRequest(300000, 'TRY', 'O'))
+        (new DirectMethodPaymentRequest('300000', 'TRY', 'O'))
             ->withMethodFields(PaymentMethod::PROMISSORY_NOTE, null, self::debtor())
             ->toArray();
     }
@@ -182,7 +182,7 @@ final class PromissoryNoteTest extends TestCase
         $this->expectException(ConfigurationException::class);
         $this->expectExceptionMessage('given twice');
 
-        (new DirectMethodPaymentRequest(300000, 'TRY', 'O'))
+        (new DirectMethodPaymentRequest('300000', 'TRY', 'O'))
             ->withMethodFields(PaymentMethod::PROMISSORY_NOTE, null, ['noteCount' => '3'])
             ->withPromissoryNoteSchedule(self::SCHEDULE)
             ->toArray();
@@ -193,7 +193,7 @@ final class PromissoryNoteTest extends TestCase
         $this->expectException(ConfigurationException::class);
         $this->expectExceptionMessage('withPromissoryNoteSchedule()');
 
-        (new DirectMethodPaymentRequest(300000, 'TRY', 'O'))
+        (new DirectMethodPaymentRequest('300000', 'TRY', 'O'))
             ->withMethodFields(PaymentMethod::PROMISSORY_NOTE, null, ['schedule' => self::SCHEDULE]);
     }
 
@@ -202,7 +202,7 @@ final class PromissoryNoteTest extends TestCase
         $this->expectException(ConfigurationException::class);
         $this->expectExceptionMessage('only be sent with paymentMethod PROMISSORY_NOTE');
 
-        (new DirectMethodPaymentRequest(5000, 'TRY', 'O'))
+        (new DirectMethodPaymentRequest('5000', 'TRY', 'O'))
             ->withMethodFields(PaymentMethod::MOBILE_BILLING, null, [])
             ->withPromissoryNoteCount(2)
             ->toArray();
@@ -210,7 +210,7 @@ final class PromissoryNoteTest extends TestCase
 
     public function testTheLaterPlanReplacesTheEarlierOne(): void
     {
-        $body = (new DirectMethodPaymentRequest(300000, 'TRY', 'O'))
+        $body = (new DirectMethodPaymentRequest('300000', 'TRY', 'O'))
             ->withMethodFields(PaymentMethod::PROMISSORY_NOTE, null, [])
             ->withPromissoryNoteCount(2)
             ->withPromissoryNoteSchedule(self::SCHEDULE)
@@ -224,17 +224,17 @@ final class PromissoryNoteTest extends TestCase
     {
         return [
             'empty' => [[]],
-            'not a list' => [['first' => ['amount' => 300000, 'dueDate' => '2030-01-15']]],
+            'not a list' => [['first' => ['amount' => '300000', 'dueDate' => '2030-01-15']]],
             'row is a list' => [[[300000, '2030-01-15']]],
-            'no due date' => [[['amount' => 300000]]],
-            'day-month-year' => [[['amount' => 300000, 'dueDate' => '15.01.2030']]],
-            'not a calendar day' => [[['amount' => 300000, 'dueDate' => '2030-02-30']]],
+            'no due date' => [[['amount' => '300000']]],
+            'day-month-year' => [[['amount' => '300000', 'dueDate' => '15.01.2030']]],
+            'not a calendar day' => [[['amount' => '300000', 'dueDate' => '2030-02-30']]],
             'decimal amount' => [[['amount' => 3000.5, 'dueDate' => '2030-01-15']]],
-            'string amount' => [[['amount' => '300000', 'dueDate' => '2030-01-15']]],
-            'zero amount' => [[['amount' => 0, 'dueDate' => '2030-01-15']]],
-            'extra key' => [[['amount' => 300000, 'dueDate' => '2030-01-15', 'currency' => 'TRY']]],
-            'descending' => [[['amount' => 100000, 'dueDate' => '2030-02-15'], ['amount' => 200000, 'dueDate' => '2030-01-15']]],
-            'too many rows' => [array_fill(0, 25, ['amount' => 12000, 'dueDate' => '2030-01-15'])],
+            'numeric amount' => [[['amount' => 300000, 'dueDate' => '2030-01-15']]],
+            'zero amount' => [[['amount' => '0', 'dueDate' => '2030-01-15']]],
+            'extra key' => [[['amount' => '300000', 'dueDate' => '2030-01-15', 'currency' => 'TRY']]],
+            'descending' => [[['amount' => '100000', 'dueDate' => '2030-02-15'], ['amount' => '200000', 'dueDate' => '2030-01-15']]],
+            'too many rows' => [array_fill(0, 25, ['amount' => '12000', 'dueDate' => '2030-01-15'])],
         ];
     }
 
@@ -244,22 +244,22 @@ final class PromissoryNoteTest extends TestCase
     {
         $this->expectException(ConfigurationException::class);
 
-        (new DirectMethodPaymentRequest(300000, 'TRY', 'O'))
+        (new DirectMethodPaymentRequest('300000', 'TRY', 'O'))
             ->withMethodFields(PaymentMethod::PROMISSORY_NOTE, null, [])
             ->withPromissoryNoteSchedule($schedule);
     }
 
     public function testSameDayRowsAndTwentyFourRowsPass(): void
     {
-        $sameDay = (new DirectMethodPaymentRequest(300000, 'TRY', 'O'))
+        $sameDay = (new DirectMethodPaymentRequest('300000', 'TRY', 'O'))
             ->withMethodFields(PaymentMethod::PROMISSORY_NOTE, null, [])
-            ->withPromissoryNoteSchedule([['amount' => 150000, 'dueDate' => '2030-01-15'], ['amount' => 150000, 'dueDate' => '2030-01-15']])
+            ->withPromissoryNoteSchedule([['amount' => '150000', 'dueDate' => '2030-01-15'], ['amount' => '150000', 'dueDate' => '2030-01-15']])
             ->toArray();
         $this->assertCount(2, $sameDay['promissoryNote']['schedule']);
 
-        $longest = (new DirectMethodPaymentRequest(24 * 12500, 'TRY', 'O'))
+        $longest = (new DirectMethodPaymentRequest('300000', 'TRY', 'O'))
             ->withMethodFields(PaymentMethod::PROMISSORY_NOTE, null, [])
-            ->withPromissoryNoteSchedule(array_fill(0, 24, ['amount' => 12500, 'dueDate' => '2030-01-15']))
+            ->withPromissoryNoteSchedule(array_fill(0, 24, ['amount' => '12500', 'dueDate' => '2030-01-15']))
             ->toArray();
         $this->assertCount(24, $longest['promissoryNote']['schedule']);
     }
@@ -269,7 +269,7 @@ final class PromissoryNoteTest extends TestCase
         $this->expectException(ConfigurationException::class);
         $this->expectExceptionMessage('adds up to 300000; it must equal amount (300001)');
 
-        (new DirectMethodPaymentRequest(300001, 'TRY', 'O'))
+        (new DirectMethodPaymentRequest('300001', 'TRY', 'O'))
             ->withMethodFields(PaymentMethod::PROMISSORY_NOTE, null, [])
             ->withPromissoryNoteSchedule(self::SCHEDULE)
             ->toArray();
@@ -287,7 +287,7 @@ final class PromissoryNoteTest extends TestCase
     {
         $this->expectException(ConfigurationException::class);
 
-        (new DirectMethodPaymentRequest(300000, 'TRY', 'O'))->withPromissoryNoteCount($count);
+        (new DirectMethodPaymentRequest('300000', 'TRY', 'O'))->withPromissoryNoteCount($count);
     }
 
     // --- PaymentClient::directMethodPayment ----------------------------------------------
@@ -338,7 +338,7 @@ final class PromissoryNoteTest extends TestCase
 
     public function testAnIntentCarriesPromissoryNoteScheduleOnly(): void
     {
-        $body = (new CreateIntentRequest(300000, 'TRY', 'ORD-PN-I1'))
+        $body = (new CreateIntentRequest('300000', 'TRY', 'ORD-PN-I1'))
             ->withPaymentMethod(PaymentMethod::PROMISSORY_NOTE)
             ->withPromissoryNoteSchedule(self::SCHEDULE)
             ->toArray();
@@ -346,14 +346,14 @@ final class PromissoryNoteTest extends TestCase
         $this->assertSame(['schedule' => self::SCHEDULE], $body['promissoryNote']);
         $this->assertSame('PROMISSORY_NOTE', $body['paymentMethod']);
 
-        $unpinned = (new CreateIntentRequest(300000, 'TRY', 'O'))->withPromissoryNoteSchedule(self::SCHEDULE)->toArray();
+        $unpinned = (new CreateIntentRequest('300000', 'TRY', 'O'))->withPromissoryNoteSchedule(self::SCHEDULE)->toArray();
         $this->assertArrayNotHasKey('paymentMethod', $unpinned);
     }
 
     public function testAnIntentScheduleNeedsTheMatchingMethodAndTotal(): void
     {
         try {
-            (new CreateIntentRequest(300000, 'TRY', 'O'))->withPaymentMethod('CARD')->withPromissoryNoteSchedule(self::SCHEDULE)->toArray();
+            (new CreateIntentRequest('300000', 'TRY', 'O'))->withPaymentMethod('CARD')->withPromissoryNoteSchedule(self::SCHEDULE)->toArray();
             $this->fail('A schedule with paymentMethod CARD must be refused.');
         } catch (ConfigurationException $e) {
             $this->assertStringContainsString('cannot be sent with paymentMethod CARD', $e->getMessage());
@@ -361,7 +361,7 @@ final class PromissoryNoteTest extends TestCase
 
         $this->expectException(ConfigurationException::class);
         $this->expectExceptionMessage('must equal amount');
-        (new CreateIntentRequest(300001, 'TRY', 'O'))->withPromissoryNoteSchedule(self::SCHEDULE)->toArray();
+        (new CreateIntentRequest('300001', 'TRY', 'O'))->withPromissoryNoteSchedule(self::SCHEDULE)->toArray();
     }
 
     // --- Promissory-notes endpoints ------------------------------------------------------
@@ -382,12 +382,12 @@ final class PromissoryNoteTest extends TestCase
         $this->assertSame(self::PAYMENT_ID, $notes->paymentId());
         $this->assertSame('PROMISSORY_NOTE', $notes->documentType());
         $this->assertSame('ROW-0001', $notes->rowSerialNumber());
-        $this->assertSame(300000, $notes->totalAmount());
+        $this->assertSame('300000', $notes->totalAmount());
         $this->assertCount(2, $notes->notes());
         $second = $notes->notes()[1];
         $this->assertSame('NOTE-0002', $second->serialNumber());
         $this->assertSame(2, $second->sequence());
-        $this->assertSame(200000, $second->amount());
+        $this->assertSame('200000', $second->amount());
         $this->assertSame(PromissoryNoteStatus::PAID, $second->status());
         $this->assertSame('2030-02-16T09:00:00.000Z', $second->paidAt());
         $this->assertNull($second->cancelledAt());

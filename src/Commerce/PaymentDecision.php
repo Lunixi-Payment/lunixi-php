@@ -7,13 +7,13 @@ final class PaymentDecision
 {
     public string $state;
     public string $paymentId;
-    public int $chargedAmount;
-    public int $refundedAmount;
-    public int $capturedAmount;
+    public string $chargedAmount;
+    public string $refundedAmount;
+    public string $capturedAmount;
     public string $gatewayStatus;
     public ?string $splitId;
 
-    public function __construct(string $state, string $paymentId, int $chargedAmount, int $refundedAmount = 0, ?string $splitId = null, int $capturedAmount = 0, string $gatewayStatus = '')
+    public function __construct(string $state, string $paymentId, string $chargedAmount, string $refundedAmount = '0', ?string $splitId = null, string $capturedAmount = '0', string $gatewayStatus = '')
     {
         $this->state = $state;
         $this->paymentId = $paymentId;

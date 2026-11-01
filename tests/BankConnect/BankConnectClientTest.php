@@ -153,16 +153,16 @@ final class BankConnectClientTest extends TestCase
     private static function balanceJson(): array
     {
         return [
-            'accountId' => self::ACCOUNT_ID, 'currency' => 'TRY', 'balanceMinor' => 1250050, 'availableMinor' => 1200050,
-            'blockedMinor' => 50000, 'asOf' => '2026-01-01T07:05:00.000Z',
-            'availableWithoutOverdraftMinor' => 1000050, 'overdraftAvailableMinor' => 200000,
+            'accountId' => self::ACCOUNT_ID, 'currency' => 'TRY', 'balanceMinor' => '1250050', 'availableMinor' => '1200050',
+            'blockedMinor' => '50000', 'asOf' => '2026-01-01T07:05:00.000Z',
+            'availableWithoutOverdraftMinor' => '1000050', 'overdraftAvailableMinor' => '200000',
         ];
     }
 
     private static function transactionJson(): array
     {
         return [
-            'transactionId' => self::TRANSACTION_ID, 'accountId' => self::ACCOUNT_ID, 'direction' => 'CREDIT', 'amountMinor' => 150000,
+            'transactionId' => self::TRANSACTION_ID, 'accountId' => self::ACCOUNT_ID, 'direction' => 'CREDIT', 'amountMinor' => '150000',
             'currency' => 'TRY', 'bookedAt' => '2026-01-01T07:00:00.000Z', 'valueAt' => '2026-01-01T07:00:00.000Z',
             'canonicalType' => 'TRANSFER_IN', 'description' => 'LNX-ORNEK-0001', 'counterpartyNameMasked' => 'Ö**** A****',
             'counterpartyIbanMasked' => 'TR00 **** **** **** **** **00 00', 'receiptNo' => 'R-0001',
@@ -172,7 +172,7 @@ final class BankConnectClientTest extends TestCase
 
     private static function transactionDetailJson(): array
     {
-        return self::transactionJson() + ['balanceAfterMinor' => 1250050, 'documentNo' => 'D-0001', 'bank' => self::bankRef()];
+        return self::transactionJson() + ['balanceAfterMinor' => '1250050', 'documentNo' => 'D-0001', 'bank' => self::bankRef()];
     }
 
     private static function syncJson(): array
@@ -269,8 +269,8 @@ final class BankConnectClientTest extends TestCase
             'bookedFrom' => new DateTimeImmutable('2026-01-01T00:00:00+03:00'),
             'bookedTo' => '2026-04-02T21:00:00Z',
             'direction' => BankTransactionDirection::CREDIT,
-            'minAmountMinor' => 100,
-            'maxAmountMinor' => 200,
+            'minAmountMinor' => '100',
+            'maxAmountMinor' => '200',
             'canonicalType' => [BankTransactionType::TRANSFER_IN, BankTransactionType::FEE],
             'limit' => 50,
             'cursor' => 'opaque-cursor',
@@ -349,9 +349,9 @@ final class BankConnectClientTest extends TestCase
             'direction' => ['listTransactions', ['direction' => 'IN'], "'direction'"],
             'canonical type' => ['listTransactions', ['canonicalType' => ['TRANSFER_IN', 'NOT_A_TYPE']], "'canonicalType'"],
             'currency' => ['listBalances', ['currency' => 'TL'], "'currency'"],
-            'negative amount' => ['listTransactions', ['minAmountMinor' => -1], "'minAmountMinor'"],
+            'negative amount' => ['listTransactions', ['minAmountMinor' => '-1'], "'minAmountMinor'"],
             'float amount' => ['listTransactions', ['maxAmountMinor' => 12.5], "'maxAmountMinor'"],
-            'min above max' => ['listTransactions', ['minAmountMinor' => 500, 'maxAmountMinor' => 100], "'minAmountMinor' must not be greater"],
+            'min above max' => ['listTransactions', ['minAmountMinor' => '500', 'maxAmountMinor' => '100'], "'minAmountMinor' must not be greater"],
             'bookedTo alone' => ['listTransactions', ['bookedTo' => '2026-04-03T00:00:00Z'], "'bookedTo' needs 'bookedFrom'"],
             'reversed window' => ['listTransactions', ['bookedFrom' => '2026-04-03T00:00:00Z', 'bookedTo' => '2026-04-01T00:00:00Z'], 'must not be after'],
             '92 days + 1 ms' => ['listTransactions', ['bookedFrom' => '2026-01-01T00:00:00Z', 'bookedTo' => '2026-04-03T00:00:00.001Z'], 'at most 92 days'],
@@ -477,16 +477,16 @@ final class BankConnectClientTest extends TestCase
     public function testBalanceAmountsAreIntegersAndUnreportedOnesAreNull(): void
     {
         [$client, $http] = $this->make();
-        $http->pushJson(200, self::page([self::balanceJson(), ['accountId' => self::OTHER_ACCOUNT_ID, 'currency' => 'TRY', 'balanceMinor' => 0]]));
+        $http->pushJson(200, self::page([self::balanceJson(), ['accountId' => self::OTHER_ACCOUNT_ID, 'currency' => 'TRY', 'balanceMinor' => '0']]));
         [$full, $bare] = $client->listBalances()->items();
 
-        $this->assertSame(1250050, $full->balanceMinor());
-        $this->assertSame(1200050, $full->availableMinor());
-        $this->assertSame(50000, $full->blockedMinor());
-        $this->assertSame(1000050, $full->availableWithoutOverdraftMinor());
-        $this->assertSame(200000, $full->overdraftAvailableMinor());
+        $this->assertSame('1250050', $full->balanceMinor());
+        $this->assertSame('1200050', $full->availableMinor());
+        $this->assertSame('50000', $full->blockedMinor());
+        $this->assertSame('1000050', $full->availableWithoutOverdraftMinor());
+        $this->assertSame('200000', $full->overdraftAvailableMinor());
         $this->assertNull($bare->overdraftAvailableMinor());
-        $this->assertSame(0, $bare->balanceMinor());
+        $this->assertSame('0', $bare->balanceMinor());
         $this->assertNull($bare->availableMinor(), 'not reported is null, not 0');
         $this->assertNull($bare->asOf());
     }
@@ -501,7 +501,7 @@ final class BankConnectClientTest extends TestCase
 
         [$listed] = $client->listTransactions()->items();
         $this->assertTrue($listed->isCredit());
-        $this->assertSame(150000, $listed->amountMinor());
+        $this->assertSame('150000', $listed->amountMinor());
         $this->assertNull($listed->valueAt());
         $this->assertNull($listed->receiptNo());
         $this->assertNull($listed->bank(), 'a list row has no bank');
@@ -511,7 +511,7 @@ final class BankConnectClientTest extends TestCase
         $this->assertSame('0000', $listed->counterpartyBankCode());
 
         $detail = $client->getTransaction(self::TRANSACTION_ID);
-        $this->assertSame(1250050, $detail->balanceAfterMinor());
+        $this->assertSame('1250050', $detail->balanceAfterMinor());
         $this->assertSame('D-0001', $detail->documentNo());
         $this->assertInstanceOf(BankConnectBankRef::class, $detail->bank());
         $this->assertSame('LNX-ORNEK-0001', $detail->description());
@@ -655,7 +655,7 @@ final class BankConnectClientTest extends TestCase
             'createdAt' => $timestamp,
             'data' => [
                 'transactionId' => self::TRANSACTION_ID, 'accountId' => self::ACCOUNT_ID, 'connectionId' => self::CONNECTION_ID,
-                'bankEftCode' => '0000', 'bankName' => 'ÖRNEK BANKA', 'direction' => 'DEBIT', 'amountMinor' => 2500,
+                'bankEftCode' => '0000', 'bankName' => 'ÖRNEK BANKA', 'direction' => 'DEBIT', 'amountMinor' => '2500',
                 'currency' => 'TRY', 'bookedAt' => '2026-01-01T07:00:00.000Z', 'valueAt' => null,
                 'receivedAt' => '2026-01-01T07:05:00.000Z', 'canonicalType' => 'FEE', 'description' => null,
                 'counterpartyNameMasked' => null, 'counterpartyIbanMasked' => null, 'receiptNo' => null,
@@ -675,7 +675,7 @@ final class BankConnectClientTest extends TestCase
         $txn = BankAccountTransactionReceived::fromEvent($event);
         $this->assertSame('TEST', $txn->environment());
         $this->assertSame(self::TRANSACTION_ID, $txn->transactionId());
-        $this->assertSame(2500, $txn->amountMinor());
+        $this->assertSame('2500', $txn->amountMinor());
         $this->assertFalse($txn->isCredit());
         $this->assertSame('0000', $txn->bankEftCode());
         $this->assertNull($txn->valueAt(), 'a null field reads as null');

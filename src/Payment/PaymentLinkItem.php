@@ -11,7 +11,7 @@ use Lunixi\Sdk\Exception\ConfigurationException;
  *
  * `itemKey` is the line's permanent identity — stock is counted on it — so it
  * cannot be changed once the link exists. Leave it out and the server assigns
- * one (`it_…`). Amounts are integers in minor units.
+ * one (`it_…`). Amounts are canonical integer strings in minor units.
  *
  *   $item = (new PaymentLinkItem('Standard ticket', 45000))
  *       ->withItemKey('standard')
@@ -23,7 +23,10 @@ final class PaymentLinkItem
     /** @var array<string,mixed> */
     private array $payload;
 
-    public function __construct(string $name, int $unitPriceMinor)
+    /**
+     * @param mixed $unitPriceMinor Canonical money string; other types are rejected before coercion.
+     */
+    public function __construct(string $name, $unitPriceMinor)
     {
         if (trim($name) === '') {
             throw new ConfigurationException("PaymentLinkItem 'name' is required.");

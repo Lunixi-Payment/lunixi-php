@@ -46,7 +46,7 @@ final class PaymentClientTest extends TestCase
 
     private function cardRequest(): DirectMethodPaymentRequest
     {
-        return (new DirectMethodPaymentRequest(1000, 'TRY', 'o1'))
+        return (new DirectMethodPaymentRequest('1000', 'TRY', 'o1'))
             ->withCard(new CardDetails(['cardNumber' => '5400000000000004']))
             ->withBuyer(new Buyer([
                 'name' => 'Ada', 'surname' => 'L', 'identityNumber' => '11111111111',
@@ -58,7 +58,7 @@ final class PaymentClientTest extends TestCase
                 'city' => 'Istanbul', 'country' => 'TR',
             ]))
             ->withBasketItems([
-                new BasketItem(['id' => 'i1', 'price' => 1000, 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => BasketItem::TYPE_PHYSICAL]),
+                new BasketItem(['id' => 'i1', 'price' => '1000', 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => BasketItem::TYPE_PHYSICAL]),
             ]);
     }
 
@@ -67,7 +67,7 @@ final class PaymentClientTest extends TestCase
         [$payments, $http] = $this->make();
         $http->pushJson(201, ['success' => true, 'code' => 'OK', 'paymentId' => 'pi_1', 'token' => 'tok_1', 'checkoutFormContent' => '']);
 
-        $request = (new CreateIntentRequest(1000, 'try', 'WC-1042'))
+        $request = (new CreateIntentRequest('1000', 'try', 'WC-1042'))
             ->withCallbackUrl('https://shop/cb');
         $intent = $payments->createIntent($request);
 
@@ -79,7 +79,7 @@ final class PaymentClientTest extends TestCase
         $this->assertStringEndsWith('/api/v1/payments/intents', $call['url']);
         $this->assertArrayHasKey('X-Signature', $call['headers']); // step-up
         $body = json_decode((string) $call['body'], true);
-        $this->assertSame(1000, $body['amount']);
+        $this->assertSame('1000', $body['amount']);
         $this->assertSame('TRY', $body['currency']);
         $this->assertSame('WC-1042', $body['orderId']);
         $this->assertArrayNotHasKey('installment', $body); // intent has no installment field (gateway: 400)
@@ -92,7 +92,7 @@ final class PaymentClientTest extends TestCase
         $http->pushJson(200, ['success' => false, 'code' => 'CHECKOUT_INITIALIZE_FAILED', 'message' => 'nope']);
 
         try {
-            $payments->createIntent(new CreateIntentRequest(1000, 'TRY', 'o1'));
+            $payments->createIntent(new CreateIntentRequest('1000', 'TRY', 'o1'));
             $this->fail('expected ApiException');
         } catch (ApiException $e) {
             $this->assertSame('CHECKOUT_INITIALIZE_FAILED', $e->getErrorCode());
@@ -102,9 +102,9 @@ final class PaymentClientTest extends TestCase
     public function testCapturePartialSendsAmountAndIdempotencyKey(): void
     {
         [$payments, $http] = $this->make();
-        $http->pushJson(200, ['success' => true, 'data' => ['id' => 'pi_1', 'status' => 'PARTIALLY_CAPTURED', 'amount' => 1000, 'currency' => 'TRY']]);
+        $http->pushJson(200, ['success' => true, 'data' => ['id' => 'pi_1', 'status' => 'PARTIALLY_CAPTURED', 'amount' => '1000', 'currency' => 'TRY']]);
 
-        $intent = $payments->capture('pi_1', 500, 'idem-cap-1');
+        $intent = $payments->capture('pi_1', '500', 'idem-cap-1');
 
         $this->assertSame(PaymentStatus::PARTIALLY_CAPTURED, $intent->status());
         $this->assertTrue($intent->isCaptured());
@@ -115,14 +115,14 @@ final class PaymentClientTest extends TestCase
         $this->assertArrayHasKey('X-Signature', $call['headers']);
         $body = json_decode((string) $call['body'], true);
         $this->assertSame('pi_1', $body['paymentIntentId']);
-        $this->assertSame(500, $body['amount']);
+        $this->assertSame('500', $body['amount']);
     }
 
     public function testCaptureRequiresIdempotencyKey(): void
     {
         [$payments] = $this->make();
         $this->expectException(ConfigurationException::class);
-        $payments->capture('pi_1');
+        $payments->capture('pi_1', '100');
     }
 
     public function testRefundSendsAmountAndReason(): void
@@ -130,13 +130,13 @@ final class PaymentClientTest extends TestCase
         [$payments, $http] = $this->make();
         $http->pushJson(200, ['success' => true, 'data' => ['id' => 'pi_1', 'status' => 'PARTIALLY_REFUNDED']]);
 
-        $intent = $payments->refund('pi_1', 300, 'customer return', 'idem-ref-1');
+        $intent = $payments->refund('pi_1', '300', 'customer return', 'idem-ref-1');
 
         $this->assertSame(PaymentStatus::PARTIALLY_REFUNDED, $intent->status());
         $call = $http->lastCall();
         $this->assertStringEndsWith('/api/v1/payments/pi_1/refund', $call['url']);
         $body = json_decode((string) $call['body'], true);
-        $this->assertSame(300, $body['amount']);
+        $this->assertSame('300', $body['amount']);
         $this->assertSame('customer return', $body['reason']);
     }
 
@@ -158,7 +158,7 @@ final class PaymentClientTest extends TestCase
     {
         [$payments, $http] = $this->make();
         $http->pushJson(200, ['success' => true, 'data' => [
-            'id' => 'pi_9', 'status' => 'AWAITING_3D', 'amount' => 2500, 'currency' => 'TRY',
+            'id' => 'pi_9', 'status' => 'AWAITING_3D', 'amount' => '2500', 'currency' => 'TRY',
             'is3D' => true, 'threeDRedirectUrl' => 'https://bank/3ds',
             'metadataJson' => '{"wc_order":"42"}',
         ]]);
@@ -208,7 +208,7 @@ final class PaymentClientTest extends TestCase
         $body = json_decode((string) $call['body'], true);
         $this->assertSame('CARD', $body['paymentMethod']);
         $this->assertTrue($body['force3D']);
-        $this->assertSame(1000, $body['amount']);
+        $this->assertSame('1000', $body['amount']);
         $this->assertArrayNotHasKey('paidPrice', $body);
         $this->assertSame('TRY', $body['currency']);
         $this->assertSame('5400000000000004', $body['card']['cardNumber']);
@@ -233,7 +233,7 @@ final class PaymentClientTest extends TestCase
         $this->assertStringEndsWith('/api/v1/bin/info', $http->lastCall()['url']);
 
         $http->pushJson(200, ['success' => true, 'data' => ['binding' => true]]);
-        $payments->installmentOptions((new InstallmentOptionsRequest(1000, 'TRY'))->withBinOrPan('54000000')->withInstallment(3));
+        $payments->installmentOptions((new InstallmentOptionsRequest('1000', 'TRY'))->withBinOrPan('54000000')->withInstallment(3));
         $call = $http->lastCall();
         $this->assertStringEndsWith('/api/v1/bin/installments', $call['url']);
         $this->assertSame(3, json_decode((string) $call['body'], true)['installment']);

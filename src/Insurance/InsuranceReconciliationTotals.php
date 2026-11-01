@@ -16,9 +16,9 @@ final class InsuranceReconciliationTotals extends InsuranceResource
         return $this->int('orderCount');
     }
 
-    public function premiumAmount(): int
+    public function premiumAmount(): string
     {
-        return $this->int('premiumAmount');
+        return $this->money('premiumAmount');
     }
 
     public function collectedOrderCount(): int
@@ -26,9 +26,9 @@ final class InsuranceReconciliationTotals extends InsuranceResource
         return $this->int('collectedOrderCount');
     }
 
-    public function collectedPremiumAmount(): int
+    public function collectedPremiumAmount(): string
     {
-        return $this->int('collectedPremiumAmount');
+        return $this->money('collectedPremiumAmount');
     }
 
     public function policyCount(): int
@@ -41,9 +41,9 @@ final class InsuranceReconciliationTotals extends InsuranceResource
         return $this->int('inForcePolicyCount');
     }
 
-    public function inForcePremiumAmount(): int
+    public function inForcePremiumAmount(): string
     {
-        return $this->int('inForcePremiumAmount');
+        return $this->money('inForcePremiumAmount');
     }
 
     public function cancelledPolicyCount(): int
@@ -51,9 +51,9 @@ final class InsuranceReconciliationTotals extends InsuranceResource
         return $this->int('cancelledPolicyCount');
     }
 
-    public function cancelledPremiumAmount(): int
+    public function cancelledPremiumAmount(): string
     {
-        return $this->int('cancelledPremiumAmount');
+        return $this->money('cancelledPremiumAmount');
     }
 
     public function refundedOrderCount(): int
@@ -61,9 +61,9 @@ final class InsuranceReconciliationTotals extends InsuranceResource
         return $this->int('refundedOrderCount');
     }
 
-    public function refundedPremiumAmount(): int
+    public function refundedPremiumAmount(): string
     {
-        return $this->int('refundedPremiumAmount');
+        return $this->money('refundedPremiumAmount');
     }
 
     public function refundOpenOrderCount(): int
@@ -71,8 +71,8 @@ final class InsuranceReconciliationTotals extends InsuranceResource
         return $this->int('refundOpenOrderCount');
     }
 
-    public function refundOpenPremiumAmount(): int
+    public function refundOpenPremiumAmount(): string
     {
-        return $this->int('refundOpenPremiumAmount');
+        return $this->money('refundOpenPremiumAmount');
     }
 }

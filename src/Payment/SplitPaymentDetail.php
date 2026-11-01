@@ -17,6 +17,7 @@ final class SplitPaymentDetail
     /** @param array<string,mixed> $data The split payment object (response `data` or a list item). */
     public function __construct(array $data)
     {
+        \Lunixi\Sdk\Commerce\MoneyPayload::validate($data);
         $this->data = $data;
     }
 
@@ -71,20 +72,20 @@ final class SplitPaymentDetail
     }
 
     /** What can still be refunded from the main payment (minor units). */
-    public function refundableAmount(): int
+    public function refundableAmount(): string
     {
-        return (int) ($this->summary('refund')['refundableAmount'] ?? 0);
+        return \Lunixi\Sdk\Commerce\Money::integer($this->summary('refund')['refundableAmount'] ?? '0');
     }
 
     /** Amount of the legs that cannot be reversed (never refunded). */
-    public function nonRefundableAmount(): int
+    public function nonRefundableAmount(): string
     {
-        return (int) ($this->summary('refund')['nonRefundableAmount'] ?? 0);
+        return \Lunixi\Sdk\Commerce\Money::integer($this->summary('refund')['nonRefundableAmount'] ?? '0');
     }
 
-    public function refundedAmount(): int
+    public function refundedAmount(): string
     {
-        return (int) ($this->summary('refund')['refundedAmount'] ?? 0);
+        return \Lunixi\Sdk\Commerce\Money::integer($this->summary('refund')['refundedAmount'] ?? '0');
     }
 
     /** A leg has a chargeback; the main payment's status does not change. */
@@ -93,9 +94,9 @@ final class SplitPaymentDetail
         return ($this->summary('dispute')['hasDispute'] ?? false) === true;
     }
 
-    public function disputedAmount(): int
+    public function disputedAmount(): string
     {
-        return (int) ($this->summary('dispute')['disputedAmount'] ?? 0);
+        return \Lunixi\Sdk\Commerce\Money::integer($this->summary('dispute')['disputedAmount'] ?? '0');
     }
 
     /** @return array<string,mixed> */

@@ -9,7 +9,7 @@ namespace Lunixi\Sdk\BankConnect;
  * BankTransferCreated::transfer()).
  *
  * The receiver's IBAN and name are masked; the full values are never
- * returned. Amounts are integers in minor units. Unlike the read routes, a
+ * returned. Amounts are canonical integer strings in minor units. Unlike the read routes, a
  * field without a value is sent as null; the accessors return null for it.
  */
 final class BankTransfer extends BankConnectResource
@@ -47,9 +47,9 @@ final class BankTransfer extends BankConnectResource
         return $this->strOrNull('rail');
     }
 
-    public function amountMinor(): int
+    public function amountMinor(): string
     {
-        return $this->int('amountMinor');
+        return $this->money('amountMinor');
     }
 
     public function currency(): string

@@ -16,6 +16,7 @@ final class SplitPaymentLeg
     /** @param array<string,mixed> $data */
     public function __construct(array $data)
     {
+        \Lunixi\Sdk\Commerce\MoneyPayload::validate($data);
         $this->data = $data;
     }
 
@@ -41,9 +42,9 @@ final class SplitPaymentLeg
     }
 
     /** Leg amount in minor units (part of the order amount). */
-    public function legAmount(): int
+    public function legAmount(): string
     {
-        return (int) ($this->data['legAmount'] ?? 0);
+        return \Lunixi\Sdk\Commerce\Money::integer($this->data['legAmount'] ?? '0');
     }
 
     /** 1 = single payment. */
@@ -53,20 +54,20 @@ final class SplitPaymentLeg
     }
 
     /** Leg amount plus the installment fee; null before the leg is charged. */
-    public function chargeAmount(): ?int
+    public function chargeAmount(): ?string
     {
-        return self::int($this->data['chargeAmount'] ?? null);
+        return self::money($this->data['chargeAmount'] ?? null);
     }
 
     /** Refund ceiling of the leg; null before the leg is charged. */
-    public function capturedAmount(): ?int
+    public function capturedAmount(): ?string
     {
-        return self::int($this->data['capturedAmount'] ?? null);
+        return self::money($this->data['capturedAmount'] ?? null);
     }
 
-    public function refundedAmount(): ?int
+    public function refundedAmount(): ?string
     {
-        return self::int($this->data['refundedAmount'] ?? null);
+        return self::money($this->data['refundedAmount'] ?? null);
     }
 
     /** Leg status (see SplitPaymentStep::status()). */
@@ -136,6 +137,12 @@ final class SplitPaymentLeg
     }
 
     /** @param mixed $value */
+    /** @param mixed $value */
+    private static function money($value): ?string
+    {
+        return $value === null ? null : \Lunixi\Sdk\Commerce\Money::integer($value);
+    }
+
     private static function int($value): ?int
     {
         return is_int($value) || (is_string($value) && ctype_digit($value)) ? (int) $value : null;

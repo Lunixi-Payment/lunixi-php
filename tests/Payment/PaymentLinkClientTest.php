@@ -145,11 +145,11 @@ final class PaymentLinkClientTest extends TestCase
             'usage' => 'SINGLE_USE',
             'amountMode' => 'FIXED',
             'currency' => 'TRY',
-            'amountMinor' => 150000,
+            'amountMinor' => '150000',
             'title' => 'Kasım danışmanlık bedeli',
             'reference' => 'INV-2026-0042',
             'metadata' => ['crmId' => 'A-77'],
-            'counters' => ['paidCount' => 2, 'collectedAmountMinor' => 300000],
+            'counters' => ['paidCount' => 2, 'collectedAmountMinor' => '300000'],
             'availability' => ['soldOut' => false, 'remainingQuantity' => null, 'inProgress' => false, 'items' => []],
             'amountLocked' => true,
         ], $overrides);
@@ -171,7 +171,7 @@ final class PaymentLinkClientTest extends TestCase
         [$links, $http] = $this->make();
         $http->pushJson(201, self::envelope(self::linkJson(['replayed' => false])));
 
-        $request = CreatePaymentLinkRequest::fixed(PaymentLinkUsage::SINGLE_USE, 150000, 'try', 'Kasım danışmanlık bedeli')
+        $request = CreatePaymentLinkRequest::fixed(PaymentLinkUsage::SINGLE_USE, '150000', 'try', 'Kasım danışmanlık bedeli')
             ->withDescription("Satır sonu\n ve \"tırnak\" / eğik çizgi")
             ->withExpiresAt(new DateTimeImmutable('2026-10-31T23:59:59+03:00'))
             ->withReference('INV-2026-0042')
@@ -193,7 +193,7 @@ final class PaymentLinkClientTest extends TestCase
 
         $body = json_decode((string) $call['body'], true);
         $this->assertSame('TRY', $body['currency']);
-        $this->assertSame(150000, $body['amountMinor']);
+        $this->assertSame('150000', $body['amountMinor']);
         $this->assertSame('2026-10-31T20:59:59.000Z', $body['expiresAt'], 'times go out as ISO-8601 UTC');
         $this->assertArrayNotHasKey('environment', $body, 'the key decides the environment');
     }
@@ -206,7 +206,7 @@ final class PaymentLinkClientTest extends TestCase
     {
         [$links, $http] = $this->make();
         $invocations = [
-            'create' => static fn () => $links->create(CreatePaymentLinkRequest::fixed('SINGLE_USE', 1000, 'TRY', 'x'), 'plink-lock-create'),
+            'create' => static fn () => $links->create(CreatePaymentLinkRequest::fixed('SINGLE_USE', '1000', 'TRY', 'x'), 'plink-lock-create'),
             'list' => static fn () => $links->list(['limit' => 5]),
             'iterate' => static fn () => iterator_to_array($links->iterate()),
             'get' => static fn () => $links->get(self::LINK_ID),
@@ -270,7 +270,7 @@ final class PaymentLinkClientTest extends TestCase
     {
         [$links, $http] = $this->make();
         $http->pushJson(201, self::envelope(self::linkJson()));
-        $links->create(CreatePaymentLinkRequest::fixed('SINGLE_USE', 1000, 'TRY', 'x'), 'plink-negative-1');
+        $links->create(CreatePaymentLinkRequest::fixed('SINGLE_USE', '1000', 'TRY', 'x'), 'plink-negative-1');
         $call = $http->lastCall();
         $this->assertSame('OK', $this->signatureGuardVerdict($call));
 
@@ -289,7 +289,7 @@ final class PaymentLinkClientTest extends TestCase
         $this->assertSame('AUTH_HEADERS_MISSING', $this->signatureGuardVerdict($bearerOnly));
 
         $tampered = $call;
-        $tampered['body'] = str_replace('"amountMinor":1000', '"amountMinor":1', (string) $call['body']);
+        $tampered['body'] = str_replace('"amountMinor":"1000"', '"amountMinor":"1"', (string) $call['body']);
         $this->assertSame('INVALID_DIGEST', $this->signatureGuardVerdict($tampered));
     }
 
@@ -299,7 +299,7 @@ final class PaymentLinkClientTest extends TestCase
         $http->pushJson(201, self::envelope(self::linkJson()));
 
         $text = "Birinci satır\u{2028}ikinci paragraf\u{2029}son";
-        $links->create(CreatePaymentLinkRequest::fixed('SINGLE_USE', 1000, 'TRY', 'x')->withDescription($text), 'plink-u2028-1');
+        $links->create(CreatePaymentLinkRequest::fixed('SINGLE_USE', '1000', 'TRY', 'x')->withDescription($text), 'plink-u2028-1');
 
         $body = (string) $http->lastCall()['body'];
         // JSON.stringify leaves U+2028/U+2029 unescaped; the gateway hashes that form.
@@ -320,13 +320,13 @@ final class PaymentLinkClientTest extends TestCase
         $http->pushJson(201, self::envelope(self::linkJson()));
 
         $links->create(
-            CreatePaymentLinkRequest::fixed('SINGLE_USE', 1000, 'TRY', 'x')->withMetadata(['crmId' => 'A-77', '2024' => 'yil']),
+            CreatePaymentLinkRequest::fixed('SINGLE_USE', '1000', 'TRY', 'x')->withMetadata(['crmId' => 'A-77', '2024' => 'yil']),
             'plink-metadata-order-1'
         );
 
         $call = $http->lastCall();
         $this->assertSame(
-            '{"usage":"SINGLE_USE","amountMode":"FIXED","currency":"TRY","title":"x","amountMinor":1000,"metadata":{"2024":"yil","crmId":"A-77"}}',
+            '{"usage":"SINGLE_USE","amountMode":"FIXED","currency":"TRY","title":"x","amountMinor":"1000","metadata":{"2024":"yil","crmId":"A-77"}}',
             $call['body']
         );
         $this->assertSame('OK', $this->signatureGuardVerdict($call));
@@ -338,7 +338,7 @@ final class PaymentLinkClientTest extends TestCase
         $http->pushJson(201, self::envelope(self::linkJson()));
         $http->pushJson(200, self::envelope(self::linkJson()));
 
-        $links->create(CreatePaymentLinkRequest::fixed('SINGLE_USE', 1000, 'TRY', 'x')->withMetadata(['0' => 'first']), 'plink-metadata-zero-1');
+        $links->create(CreatePaymentLinkRequest::fixed('SINGLE_USE', '1000', 'TRY', 'x')->withMetadata(['0' => 'first']), 'plink-metadata-zero-1');
         $this->assertStringEndsWith('"metadata":{"0":"first"}}', (string) $http->calls[0]['body'], 'PHP would encode it as ["first"]');
 
         $links->update(self::LINK_ID, 1, ['recipient' => ['email' => 'a@example.com'], 'metadata' => ['0' => 'first']]);
@@ -349,7 +349,7 @@ final class PaymentLinkClientTest extends TestCase
     public function testCreateRequiresAWellFormedIdempotencyKeyBeforeSending(): void
     {
         [$links, $http] = $this->make();
-        $request = CreatePaymentLinkRequest::fixed('SINGLE_USE', 1000, 'TRY', 'x');
+        $request = CreatePaymentLinkRequest::fixed('SINGLE_USE', '1000', 'TRY', 'x');
 
         foreach (['', '   ', 'short', 'has a space', str_repeat('k', 201)] as $key) {
             try {
@@ -367,14 +367,14 @@ final class PaymentLinkClientTest extends TestCase
         [$links, $http] = $this->make();
         $http->pushJson(200, self::envelope(self::linkJson(['replayed' => true])));
 
-        $link = $links->create(CreatePaymentLinkRequest::fixed('SINGLE_USE', 1000, 'TRY', 'x'), 'plink-replay-1');
+        $link = $links->create(CreatePaymentLinkRequest::fixed('SINGLE_USE', '1000', 'TRY', 'x'), 'plink-replay-1');
 
         $this->assertTrue($link->wasReplayed());
     }
 
     public function testBuildersProduceTheContractBody(): void
     {
-        $open = CreatePaymentLinkRequest::open(PaymentLinkUsage::MULTI_USE, 'TRY', 'Bağış', 1000, 500000, [5000, 10000, 25000])
+        $open = CreatePaymentLinkRequest::open(PaymentLinkUsage::MULTI_USE, 'TRY', 'Bağış', '1000', '500000', ['5000', '10000', '25000'])
             ->withButtonLabelKey(CreatePaymentLinkRequest::BUTTON_DONATE)
             ->toArray();
         $this->assertSame([
@@ -382,20 +382,20 @@ final class PaymentLinkClientTest extends TestCase
             'amountMode' => 'OPEN',
             'currency' => 'TRY',
             'title' => 'Bağış',
-            'minAmountMinor' => 1000,
-            'maxAmountMinor' => 500000,
-            'suggestedAmountsMinor' => [5000, 10000, 25000],
+            'minAmountMinor' => '1000',
+            'maxAmountMinor' => '500000',
+            'suggestedAmountsMinor' => ['5000', '10000', '25000'],
             'buttonLabelKey' => 'DONATE',
         ], $open);
 
         $itemized = CreatePaymentLinkRequest::itemized(PaymentLinkUsage::MULTI_USE, 'TRY', 'Etkinlik', [
-            (new PaymentLinkItem('Standart bilet', 45000))->withItemKey('standard')->withQuantityRange(0, 5)->withCapacity(100),
+            (new PaymentLinkItem('Standart bilet', '45000'))->withItemKey('standard')->withQuantityRange(0, 5)->withCapacity(100),
         ])
             ->addCustomField((new PaymentLinkCustomField('invoice_no', 'Fatura no', PaymentLinkCustomField::TYPE_TEXT))->withRequired()->withMaxLength(32))
             ->withCapacity(null)
             ->toArray();
         $this->assertSame([[
-            'name' => 'Standart bilet', 'unitPriceMinor' => 45000, 'itemKey' => 'standard', 'minQuantity' => 0, 'maxQuantity' => 5, 'capacity' => 100,
+            'name' => 'Standart bilet', 'unitPriceMinor' => '45000', 'itemKey' => 'standard', 'minQuantity' => 0, 'maxQuantity' => 5, 'capacity' => 100,
         ]], $itemized['items']);
         $this->assertSame([[
             'key' => 'invoice_no', 'label' => 'Fatura no', 'fieldType' => 'TEXT', 'required' => true, 'maxLength' => 32,
@@ -405,7 +405,7 @@ final class PaymentLinkClientTest extends TestCase
 
     public function testEveryBuilderOutputKeyIsAContractField(): void
     {
-        $full = CreatePaymentLinkRequest::fixed('MULTI_USE', 1000, 'TRY', 'Tam')
+        $full = CreatePaymentLinkRequest::fixed('MULTI_USE', '1000', 'TRY', 'Tam')
             ->withEnvironment(CreatePaymentLinkRequest::ENVIRONMENT_TEST)
             ->withQuantity(1, 5)
             ->withCapacity(100)
@@ -448,23 +448,23 @@ final class PaymentLinkClientTest extends TestCase
     public static function invalidBuilders(): array
     {
         return [
-            'zero amount' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', 0, 'TRY', 'x')],
-            'unknown usage' => [static fn () => CreatePaymentLinkRequest::fixed('ONCE', 1000, 'TRY', 'x')],
+            'zero amount' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', '0', 'TRY', 'x')],
+            'unknown usage' => [static fn () => CreatePaymentLinkRequest::fixed('ONCE', '1000', 'TRY', 'x')],
             'unknown amount mode' => [static fn () => new CreatePaymentLinkRequest('SINGLE_USE', 'FREE', 'TRY', 'x')],
-            'unsupported currency' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', 1000, 'XYZ', 'x')],
-            'empty title' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', 1000, 'TRY', ' ')],
+            'unsupported currency' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', '1000', 'XYZ', 'x')],
+            'empty title' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', '1000', 'TRY', ' ')],
             'no items' => [static fn () => CreatePaymentLinkRequest::itemized('MULTI_USE', 'TRY', 'x', [])],
             'file field' => [static fn () => new PaymentLinkCustomField('k', 'l', 'FILE')],
-            'numeric metadata' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', 1000, 'TRY', 'x')->withMetadata(['a' => 1])],
-            'unknown environment' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', 1000, 'TRY', 'x')->withEnvironment('PROD')],
-            'unknown buyer field' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', 1000, 'TRY', 'x')->withBuyerFields(['fax' => 'REQUIRED'])],
-            'unknown recipient key' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', 1000, 'TRY', 'x')->withRecipient(['tckn' => '1'])],
-            'unparseable time' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', 1000, 'TRY', 'x')->withExpiresAt(42)],
-            'unknown locale' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', 1000, 'TRY', 'x')->withLocale('de')],
-            'asset id that is not a uuid' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', 1000, 'TRY', 'x')->withImageAssetId('logo.png')],
-            'item image that is a url' => [static fn () => (new PaymentLinkItem('Bilet', 1000))->withImageAssetId('https://cdn.example/x.png')],
-            'amount beyond a JSON-safe integer' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', 9007199254740992, 'TRY', 'x')],
-            'item price beyond a JSON-safe integer' => [static fn () => new PaymentLinkItem('Bilet', 9007199254740992)],
+            'numeric metadata' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', '1000', 'TRY', 'x')->withMetadata(['a' => 1])],
+            'unknown environment' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', '1000', 'TRY', 'x')->withEnvironment('PROD')],
+            'unknown buyer field' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', '1000', 'TRY', 'x')->withBuyerFields(['fax' => 'REQUIRED'])],
+            'unknown recipient key' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', '1000', 'TRY', 'x')->withRecipient(['tckn' => '1'])],
+            'unparseable time' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', '1000', 'TRY', 'x')->withExpiresAt(42)],
+            'unknown locale' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', '1000', 'TRY', 'x')->withLocale('de')],
+            'asset id that is not a uuid' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', '1000', 'TRY', 'x')->withImageAssetId('logo.png')],
+            'item image that is a url' => [static fn () => (new PaymentLinkItem('Bilet', '1000'))->withImageAssetId('https://cdn.example/x.png')],
+            'amount beyond signed64 fiat storage' => [static fn () => CreatePaymentLinkRequest::fixed('SINGLE_USE', '9223372036854775808', 'TRY', 'x')],
+            'item price beyond signed64 fiat storage' => [static fn () => new PaymentLinkItem('Bilet', '9223372036854775808')],
         ];
     }
 
@@ -533,7 +533,7 @@ final class PaymentLinkClientTest extends TestCase
             'successRedirectUrl' => null,
             'expiresAt' => new DateTimeImmutable('2026-12-31T20:59:59Z'),
             'metadata' => [],
-            'items' => [(new PaymentLinkItem('Bilet', 1000))->withItemKey('std')],
+            'items' => [(new PaymentLinkItem('Bilet', '1000'))->withItemKey('std')],
         ]);
 
         $this->assertSame(2, $link->rowVersion());
@@ -541,7 +541,7 @@ final class PaymentLinkClientTest extends TestCase
         $this->assertSame('PATCH', $call['method']);
         $this->assertSame(self::BASE_URL . '/api/v1/payments/links/' . self::LINK_ID, $call['url']);
         $this->assertSame(
-            '{"expectedRowVersion":1,"title":"Yeni başlık","successRedirectUrl":null,"expiresAt":"2026-12-31T20:59:59.000Z","metadata":{},"items":[{"name":"Bilet","unitPriceMinor":1000,"itemKey":"std"}]}',
+            '{"expectedRowVersion":1,"title":"Yeni başlık","successRedirectUrl":null,"expiresAt":"2026-12-31T20:59:59.000Z","metadata":{},"items":[{"name":"Bilet","unitPriceMinor":"1000","itemKey":"std"}]}',
             $call['body'],
             'an emptied object field is {} (PHP would send [])'
         );
@@ -694,7 +694,7 @@ final class PaymentLinkClientTest extends TestCase
         $http->pushJson(422, $failure, ['x-request-id' => 'req_9']);
 
         try {
-            $links->create(CreatePaymentLinkRequest::fixed('SINGLE_USE', 1000, 'TRY', 'x'), 'plink-invalid-1');
+            $links->create(CreatePaymentLinkRequest::fixed('SINGLE_USE', '1000', 'TRY', 'x'), 'plink-invalid-1');
             $this->fail('expected an ApiException');
         } catch (ApiException $e) {
             $this->assertSame(422, $e->getStatusCode());
@@ -728,16 +728,16 @@ final class PaymentLinkClientTest extends TestCase
     {
         $full = new PaymentLink(self::linkJson());
         $this->assertSame(2, $full->paidCount());
-        $this->assertSame(300000, $full->collectedAmountMinor());
-        $this->assertSame(150000, $full->amountMinor());
+        $this->assertSame('300000', $full->collectedAmountMinor());
+        $this->assertSame('150000', $full->amountMinor());
         $this->assertSame('INV-2026-0042', $full->reference());
         $this->assertSame(['crmId' => 'A-77'], $full->metadata());
         $this->assertTrue($full->isAmountLocked());
         $this->assertTrue($full->isActive());
 
-        $row = new PaymentLink(['id' => 'a', 'amountMode' => 'OPEN', 'amountMinor' => null, 'reference' => '', 'paidCount' => 3, 'collectedAmountMinor' => 900]);
+        $row = new PaymentLink(['id' => 'a', 'amountMode' => 'OPEN', 'amountMinor' => null, 'reference' => '', 'paidCount' => 3, 'collectedAmountMinor' => '900']);
         $this->assertSame(3, $row->paidCount());
-        $this->assertSame(900, $row->collectedAmountMinor());
+        $this->assertSame('900', $row->collectedAmountMinor());
         $this->assertNull($row->amountMinor());
         $this->assertNull($row->reference());
         $this->assertSame([], $row->counters());

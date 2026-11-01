@@ -45,7 +45,7 @@ final class FraudEventsClientTest extends TestCase
             'subjectType' => 'transaction',
             'occurredAt' => '2026-10-05T09:12:40.000Z',
             'counterparty' => 'TR330006100519786457841326',
-            'amountMinor' => 250000,
+            'amountMinor' => '250000',
             'currency' => 'TRY',
         ];
     }

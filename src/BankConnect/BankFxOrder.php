@@ -6,7 +6,7 @@ namespace Lunixi\Sdk\BankConnect;
 
 /**
  * A currency exchange order (BankFxClient::getOrder(), a row of listOrders(),
- * or BankFxOrderCreated::order()). Amounts are integers in minor units of
+ * or BankFxOrderCreated::order()). Amounts are canonical integer strings in minor units of
  * each account's currency; a field without a value is null.
  */
 final class BankFxOrder extends BankConnectResource
@@ -46,14 +46,14 @@ final class BankFxOrder extends BankConnectResource
         return $this->str('targetCurrency');
     }
 
-    public function sourceAmountMinor(): int
+    public function sourceAmountMinor(): string
     {
-        return $this->int('sourceAmountMinor');
+        return $this->money('sourceAmountMinor');
     }
 
-    public function targetAmountMinor(): int
+    public function targetAmountMinor(): string
     {
-        return $this->int('targetAmountMinor');
+        return $this->money('targetAmountMinor');
     }
 
     /** Decimal string. */
@@ -95,14 +95,14 @@ final class BankFxOrder extends BankConnectResource
         return $this->str('initiatedVia');
     }
 
-    public function sourceBalanceAfterMinor(): ?int
+    public function sourceBalanceAfterMinor(): ?string
     {
-        return $this->intOrNull('sourceBalanceAfterMinor');
+        return $this->moneyOrNull('sourceBalanceAfterMinor');
     }
 
-    public function targetBalanceAfterMinor(): ?int
+    public function targetBalanceAfterMinor(): ?string
     {
-        return $this->intOrNull('targetBalanceAfterMinor');
+        return $this->moneyOrNull('targetBalanceAfterMinor');
     }
 
     public function createdAt(): ?string

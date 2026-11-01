@@ -32,10 +32,10 @@ if ($provider === null) {
 }
 
 $orderId = 'ORD-SPLIT-' . date('YmdHis');
-$request = (new SplitPaymentRequest(10000, 'TRY', sample_required_env('LUNIXI_CARD_USER_KEY')))
+$request = (new SplitPaymentRequest('10000', 'TRY', sample_required_env('LUNIXI_CARD_USER_KEY')))
     ->withOrderId($orderId)
-    ->addCardLeg(sample_required_env('LUNIXI_STORED_CARD_TOKEN'), 6000)
-    ->addMethodLeg(PaymentMethod::MOBILE_BILLING, $provider->providerCode(), 4000, [
+    ->addCardLeg(sample_required_env('LUNIXI_STORED_CARD_TOKEN'), '6000')
+    ->addMethodLeg(PaymentMethod::MOBILE_BILLING, $provider->providerCode(), '4000', [
         'gsmNumber' => sample_env('LUNIXI_BUYER_GSM', '+905350000000'),
     ]);
 $key = 'split:' . $orderId;
@@ -52,5 +52,5 @@ while (($pending = $split->pendingStep()) !== null && $pending->step() === Split
 }
 
 foreach ($split->steps() as $step) {
-    printf("%d. %s %s %d %s\n", $step->sequence(), $step->paymentMethod(), $step->splitBehavior(), (int) $step->amount(), $step->status());
+    printf("%d. %s %s %s %s\n", $step->sequence(), $step->paymentMethod(), $step->splitBehavior(), $step->amount() ?? '0', $step->status());
 }

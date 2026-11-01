@@ -42,14 +42,14 @@ final class BankFxQuote extends BankConnectResource
         return $this->str('targetCurrency');
     }
 
-    public function sourceAmountMinor(): int
+    public function sourceAmountMinor(): string
     {
-        return $this->int('sourceAmountMinor');
+        return $this->money('sourceAmountMinor');
     }
 
-    public function targetAmountMinor(): int
+    public function targetAmountMinor(): string
     {
-        return $this->int('targetAmountMinor');
+        return $this->money('targetAmountMinor');
     }
 
     /** One of the BankFxRequestedSide constants. */
@@ -64,9 +64,9 @@ final class BankFxQuote extends BankConnectResource
         return $this->str('appliedRate');
     }
 
-    public function taxAmountMinor(): ?int
+    public function taxAmountMinor(): ?string
     {
-        return $this->intOrNull('taxAmountMinor');
+        return $this->moneyOrNull('taxAmountMinor');
     }
 
     public function expiresAt(): ?string

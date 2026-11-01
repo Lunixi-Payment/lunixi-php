@@ -22,8 +22,6 @@ final class BankTransferRequests
 {
     private const AMOUNT_FIELDS = ['amountMinor', 'sourceAmountMinor', 'targetAmountMinor'];
 
-    /** `Number.MAX_SAFE_INTEGER`: the gateway's ceiling for an amount. */
-    private const MAX_AMOUNT_MINOR = 9007199254740991;
 
     private const CURSOR_MAX_LENGTH = 2048;
 
@@ -83,7 +81,7 @@ final class BankTransferRequests
 
     /**
      * Whitelists the body against the route: unknown or missing fields fail
-     * before sending; amounts must be positive integers; required texts are trimmed.
+     * before sending; amounts must be positive integer strings; required texts are trimmed.
      *
      * @param array<string,mixed> $request
      * @return array<string,mixed>
@@ -226,13 +224,9 @@ final class BankTransferRequests
     }
 
     /** @param mixed $value */
-    private static function amount(string $key, $value): int
+    private static function amount(string $key, $value): string
     {
-        if (!is_int($value) || $value < 1 || $value > self::MAX_AMOUNT_MINOR) {
-            throw new ConfigurationException("'{$key}' must be a positive integer in minor units (150075 = 1,500.75 TRY).");
-        }
-
-        return $value;
+        return \Lunixi\Sdk\Commerce\Money::positive($value, $key);
     }
 
     /** @param mixed $value */

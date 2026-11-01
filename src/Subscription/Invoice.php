@@ -16,6 +16,7 @@ final class Invoice
     /** @param array<string,mixed> $data */
     public function __construct(array $data)
     {
+        \Lunixi\Sdk\Commerce\MoneyPayload::validate($data);
         $this->data = $data;
     }
 
@@ -51,24 +52,24 @@ final class Invoice
     }
 
     /** Total payable in minor units. */
-    public function totalAmount(): int
+    public function totalAmount(): string
     {
-        return (int) ($this->data['totalAmount'] ?? 0);
+        return \Lunixi\Sdk\Commerce\Money::integer($this->data['totalAmount'] ?? '0');
     }
 
-    public function subtotalAmount(): int
+    public function subtotalAmount(): string
     {
-        return (int) ($this->data['subtotalAmount'] ?? 0);
+        return \Lunixi\Sdk\Commerce\Money::integer($this->data['subtotalAmount'] ?? '0');
     }
 
-    public function taxAmount(): int
+    public function taxAmount(): string
     {
-        return (int) ($this->data['taxAmount'] ?? 0);
+        return \Lunixi\Sdk\Commerce\Money::integer($this->data['taxAmount'] ?? '0');
     }
 
-    public function amountPaid(): int
+    public function amountPaid(): string
     {
-        return (int) ($this->data['amountPaid'] ?? 0);
+        return \Lunixi\Sdk\Commerce\Money::integer($this->data['amountPaid'] ?? '0');
     }
 
     public function attemptCount(): int

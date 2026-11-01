@@ -59,7 +59,7 @@ final class PaymentMethodsTest extends TestCase
 
     private function mobileBilling(): DirectMethodPaymentRequest
     {
-        return (new DirectMethodPaymentRequest(5000, 'try', 'ORD-MB-1'))
+        return (new DirectMethodPaymentRequest('5000', 'try', 'ORD-MB-1'))
             ->withMethodFields(PaymentMethod::MOBILE_BILLING, null, ['gsmNumber' => '+905321234567'])
             ->withCallbackUrl('https://merchant.example.com/payment/callback');
     }
@@ -89,7 +89,7 @@ final class PaymentMethodsTest extends TestCase
         ]);
     }
 
-    private static function basketItem(int $price): BasketItem
+    private static function basketItem(string $price): BasketItem
     {
         return new BasketItem(['id' => 'i1', 'price' => $price, 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => BasketItem::TYPE_VIRTUAL]);
     }
@@ -129,7 +129,7 @@ final class PaymentMethodsTest extends TestCase
     {
         $this->assertSame([
             'paymentMethod' => 'MOBILE_BILLING',
-            'amount' => 5000,
+            'amount' => '5000',
             'currency' => 'TRY',
             'orderId' => 'ORD-MB-1',
             'callbackUrl' => 'https://merchant.example.com/payment/callback',
@@ -139,11 +139,11 @@ final class PaymentMethodsTest extends TestCase
 
     public function testProviderCodeGoesIntoTheBlockAndAmountIsTheOnlyAmountField(): void
     {
-        $body = (new DirectMethodPaymentRequest(12500, 'TRY', 'ORD-W-1'))
+        $body = (new DirectMethodPaymentRequest('12500', 'TRY', 'ORD-W-1'))
             ->withMethodFields(PaymentMethod::WALLET, 'PAYCELL_WALLET', ['gsmNumber' => '+905321234567'])
             ->toArray();
 
-        $this->assertSame(12500, $body['amount']);
+        $this->assertSame('12500', $body['amount']);
         $this->assertArrayNotHasKey('price', $body);
         $this->assertArrayNotHasKey('paidPrice', $body);
         $this->assertSame(['providerCode' => 'PAYCELL_WALLET', 'gsmNumber' => '+905321234567'], $body['wallet']);
@@ -154,7 +154,7 @@ final class PaymentMethodsTest extends TestCase
     {
         [$api, $http] = $this->api();
         $http->pushJson(202, self::otpEnvelope('act_1'));
-        $request = (new DirectMethodPaymentRequest(5000, 'TRY', 'ORD-MB-2'))
+        $request = (new DirectMethodPaymentRequest('5000', 'TRY', 'ORD-MB-2'))
             ->withMethodFields(PaymentMethod::MOBILE_BILLING, null)
             ->withBuyer(self::buyer());
 
@@ -175,7 +175,7 @@ final class PaymentMethodsTest extends TestCase
 
     public function testWithCardPaysByCardWithTheDirectCardFields(): void
     {
-        $body = (new DirectMethodPaymentRequest(15000, 'TRY', 'ORD-C-1'))
+        $body = (new DirectMethodPaymentRequest('15000', 'TRY', 'ORD-C-1'))
             ->withCard($this->card())
             ->withForce3D(true)
             ->withInstallment(3, 'iq_1')
@@ -193,7 +193,7 @@ final class PaymentMethodsTest extends TestCase
         $this->expectException(ConfigurationException::class);
         $this->expectExceptionMessage('withCard');
 
-        (new DirectMethodPaymentRequest(5000, 'TRY', 'O'))->withMethodFields(PaymentMethod::CARD, null, []);
+        (new DirectMethodPaymentRequest('5000', 'TRY', 'O'))->withMethodFields(PaymentMethod::CARD, null, []);
     }
 
     public function testCardOnlyFieldsAreRefusedWithAnotherMethod(): void
@@ -215,7 +215,7 @@ final class PaymentMethodsTest extends TestCase
     {
         $this->expectException(ConfigurationException::class);
 
-        (new DirectMethodPaymentRequest(5000, 'TRY', 'O'))->toArray();
+        (new DirectMethodPaymentRequest('5000', 'TRY', 'O'))->toArray();
     }
 
     /** @return array<string,array{0:string}> */
@@ -230,7 +230,7 @@ final class PaymentMethodsTest extends TestCase
         $this->expectException(ConfigurationException::class);
         $this->expectExceptionMessage('cannot be paid through direct/payment yet');
 
-        (new DirectMethodPaymentRequest(5000, 'TRY', 'O'))->withMethodFields($method, null, []);
+        (new DirectMethodPaymentRequest('5000', 'TRY', 'O'))->withMethodFields($method, null, []);
     }
 
     /** @return array<string,array{0:array<mixed>}> */
@@ -260,7 +260,7 @@ final class PaymentMethodsTest extends TestCase
     {
         $this->expectException(ConfigurationException::class);
 
-        (new DirectMethodPaymentRequest(5000, 'TRY', 'O'))->withMethodFields(PaymentMethod::MOBILE_BILLING, null, $fields);
+        (new DirectMethodPaymentRequest('5000', 'TRY', 'O'))->withMethodFields(PaymentMethod::MOBILE_BILLING, null, $fields);
     }
 
     public function testAddressObjectsAndGroupListsPassAsTheGatewayAcceptsThem(): void
@@ -269,7 +269,7 @@ final class PaymentMethodsTest extends TestCase
             'address' => ['provinceCode' => '06', 'districtCode' => '100', 'neighborhoodCode' => '200', 'line' => 'Ornek Sokak 1'],
             'guarantors' => [['name' => 'Test', 'address' => ['provinceCode' => '34']]],
         ];
-        $body = (new DirectMethodPaymentRequest(5000, 'TRY', 'O'))
+        $body = (new DirectMethodPaymentRequest('5000', 'TRY', 'O'))
             ->withMethodFields(PaymentMethod::MOBILE_BILLING, null, $fields)
             ->toArray();
 
@@ -284,25 +284,25 @@ final class PaymentMethodsTest extends TestCase
     {
         foreach (['', 'PAYCELL WALLET', str_repeat('a', 65)] as $providerCode) {
             try {
-                (new DirectMethodPaymentRequest(5000, 'TRY', 'O'))->withMethodFields(PaymentMethod::WALLET, $providerCode, []);
+                (new DirectMethodPaymentRequest('5000', 'TRY', 'O'))->withMethodFields(PaymentMethod::WALLET, $providerCode, []);
                 $this->fail('invalid providerCode accepted: ' . $providerCode);
             } catch (ConfigurationException $e) {
                 $this->assertStringContainsString('providerCode', $e->getMessage());
             }
         }
-        foreach ([0, -1] as $amount) {
+        foreach (['0', '-1'] as $amount) {
             try {
                 new DirectMethodPaymentRequest($amount, 'TRY', 'O');
                 $this->fail('non-positive amount accepted');
             } catch (ConfigurationException $e) {
-                $this->assertStringContainsString("'amount'", $e->getMessage());
+                $this->assertStringContainsString("amount", $e->getMessage());
             }
         }
     }
 
     public function testEveryKeyTheBuilderEmitsIsADtoField(): void
     {
-        $full = (new DirectMethodPaymentRequest(15000, 'TRY', 'ORD-ALL'))
+        $full = (new DirectMethodPaymentRequest('15000', 'TRY', 'ORD-ALL'))
             ->withCard($this->card())
             ->withInstallment(2, 'iq')
             ->withForce3D(true)
@@ -316,10 +316,10 @@ final class PaymentMethodsTest extends TestCase
             ->withBuyer(self::buyer())
             ->withBillingAddress(self::address())
             ->withShippingAddress(self::address())
-            ->withBasketItems([self::basketItem(15000)])
+            ->withBasketItems([self::basketItem('15000')])
             ->withMetadata(['k' => 'v'])
             ->toArray();
-        $wallet = (new DirectMethodPaymentRequest(1, 'TRY', 'O'))->withMethodFields(PaymentMethod::WALLET, 'P', [])->toArray();
+        $wallet = (new DirectMethodPaymentRequest('1', 'TRY', 'O'))->withMethodFields(PaymentMethod::WALLET, 'P', [])->toArray();
 
         foreach (array_merge(array_keys($full), array_keys($wallet), array_keys($this->mobileBilling()->toArray())) as $key) {
             $this->assertContains($key, PaymentMethod::DIRECT_METHOD_PAYMENT_FIELDS, $key);
@@ -559,8 +559,8 @@ final class PaymentMethodsTest extends TestCase
                 'providerSelection' => 'OPTIONAL',
                 'actionTypes' => ['OTP'],
                 'currencies' => ['TRY'],
-                'minAmount' => 100,
-                'maxAmount' => 50000,
+                'minAmount' => '100',
+                'maxAmount' => '50000',
                 'preauth' => false,
                 'providers' => [[
                     'providerCode' => 'PAYCELL_MOBILE_BILLING',
@@ -568,8 +568,8 @@ final class PaymentMethodsTest extends TestCase
                     'logoUrl' => null,
                     'actionTypes' => ['OTP'],
                     'currencies' => ['TRY'],
-                    'minAmount' => 100,
-                    'maxAmount' => 50000,
+                    'minAmount' => '100',
+                    'maxAmount' => '50000',
                     'preauth' => false,
                     'inputFields' => [[
                         'key' => 'gsmNumber', 'type' => 'PHONE', 'required' => true,
@@ -702,7 +702,7 @@ final class PaymentMethodsTest extends TestCase
 
     public function testPlatformMethodIsPaidWithoutProviderCode(): void
     {
-        $body = (new DirectMethodPaymentRequest(5000, 'TRY', 'ORD-P-1'))
+        $body = (new DirectMethodPaymentRequest('5000', 'TRY', 'ORD-P-1'))
             ->withMethodFields(PaymentMethod::MOBILE_BILLING, null, ['gsmNumber' => '+905321234567'])
             ->toArray();
 
@@ -758,10 +758,10 @@ final class PaymentMethodsTest extends TestCase
     {
         [$api, $http] = $this->api();
         $http->pushJson(200, ['status' => 'success', 'data' => []])->pushJson(202, ['status' => 'success', 'data' => []]);
-        $request = static fn (): DirectMethodPaymentRequest => (new DirectMethodPaymentRequest(10050, 'TRY', 'ORD-D-1'))
+        $request = static fn (): DirectMethodPaymentRequest => (new DirectMethodPaymentRequest('10050', 'TRY', 'ORD-D-1'))
             ->withBuyer(self::buyer())
             ->withBillingAddress(self::address())
-            ->withBasketItems([self::basketItem(10050)]);
+            ->withBasketItems([self::basketItem('10050')]);
         $payments = new PaymentClient($api);
 
         $payments->directMethodPayment($request()->withCard($this->card()), 'k-card');
@@ -777,7 +777,7 @@ final class PaymentMethodsTest extends TestCase
         );
         foreach ([$plain, $secure] as $body) {
             $this->assertSame('CARD', $body['paymentMethod']);
-            $this->assertSame(10050, $body['amount']);
+            $this->assertSame('10050', $body['amount']);
             $this->assertArrayHasKey('card', $body);
         }
         $this->assertArrayNotHasKey('force3D', $plain);
@@ -788,7 +788,7 @@ final class PaymentMethodsTest extends TestCase
     {
         [$api, $http] = $this->api();
         $http->pushJson(200, ['status' => 'success', 'data' => []]);
-        $request = (new DirectMethodPaymentRequest(10050, 'TRY', 'ORD-S-1'))
+        $request = (new DirectMethodPaymentRequest('10050', 'TRY', 'ORD-S-1'))
             ->withCard(new CardDetails(['cardUserKey' => 'cust_1', 'cardToken' => 'ct_1', 'cvcNumber' => '123']));
 
         (new PaymentClient($api))->directMethodPayment($request, 'k-stored');

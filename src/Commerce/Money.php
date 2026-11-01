@@ -8,7 +8,7 @@ use Lunixi\Sdk\Payment\Currency;
 /** Exact platform decimal strings to gateway minor units. Never pass a float. */
 final class Money
 {
-    public const MAX_MINOR = 9007199254740991;
+    public const MAX_MINOR = '9223372036854775807';
 
     /** ISO-4217 minor-unit exponent for the SDK's supported currency set. */
     public static function exponent(string $currency): int
@@ -18,7 +18,7 @@ final class Money
     }
 
     /** @param mixed $decimal */
-    public static function minor($decimal, int $exponent = 2): int
+    public static function minor($decimal, int $exponent): string
     {
         if (!is_string($decimal) || $exponent < 0 || $exponent > 3 || !preg_match('/^(0|[1-9][0-9]*)(?:\.([0-9]+))?$/D', $decimal, $m)) {
             throw new \InvalidArgumentException('A nonnegative canonical decimal string is required.');
@@ -27,32 +27,163 @@ final class Money
         if (strlen($fraction) > $exponent && trim(substr($fraction, $exponent), '0') !== '') {
             throw new \InvalidArgumentException('Amount has fractional minor units; round using the platform tax rules first.');
         }
-        return self::integer($m[1] . str_pad(substr($fraction, 0, $exponent), $exponent, '0'));
+        return self::integer(ltrim($m[1] . str_pad(substr($fraction, 0, $exponent), $exponent, '0'), '0') ?: '0');
     }
 
-    /** @param mixed $value */
-    public static function integer($value): int
+    /**
+     * Validate a fiat minor-unit string without coercion. @param mixed $value
+     */
+    public static function integer($value): string
     {
-        if (PHP_INT_SIZE < 8 || (!is_int($value) && !is_string($value)) || !preg_match('/^[0-9]+$/D', (string) $value)) {
-            throw new \InvalidArgumentException('An exact nonnegative minor-unit integer is required on a 64-bit runtime.');
+        self::canonical($value);
+        if (self::compare($value, self::MAX_MINOR) > 0) {
+            throw new \InvalidArgumentException('Amount exceeds the signed64 fiat storage limit.');
         }
-        $digits = ltrim((string) $value, '0');
-        $digits = $digits === '' ? '0' : $digits;
-        $max = (string) self::MAX_MINOR;
-        if (strlen($digits) > strlen($max) || (strlen($digits) === strlen($max) && strcmp($digits, $max) > 0)) {
-            throw new \InvalidArgumentException('Amount exceeds the gateway safe integer limit.');
-        }
-        return (int) $digits;
+        return $value;
     }
 
-    public static function decimal(int $minor, int $exponent = 2): string
+    /**
+     * Validate the unlimited wire domain (also used by crypto). @param mixed $value
+     */
+    public static function canonical($value, bool $signed = false): string
+    {
+        $pattern = $signed ? '/^(0|-?[1-9][0-9]*)$/D' : '/^(0|[1-9][0-9]*)$/D';
+        if (!is_string($value) || preg_match($pattern, $value) !== 1) {
+            throw new \InvalidArgumentException('A canonical minor-unit integer string is required.');
+        }
+        return $value;
+    }
+
+    /**
+     * Nonnegative request money in the fiat domain. @param mixed $value
+     */
+    public static function nonnegative($value, string $field): string
+    {
+        try { return self::integer($value); }
+        catch (\InvalidArgumentException $error) { throw new \Lunixi\Sdk\Exception\ConfigurationException("'" . $field . "': " . $error->getMessage()); }
+    }
+
+    /**
+     * Exact native BIGINT storage decoding only; never use for public payloads. @param mixed $value
+     */
+    public static function fromStorage($value): string
+    {
+        if (is_int($value)) { $value = (string) $value; }
+        return self::integer($value);
+    }
+
+    /**
+     * Request validation with the SDK's configuration exception. @param mixed $value
+     */
+    public static function positive($value, string $field = 'amount'): string
+    {
+        try { $value = self::integer($value); }
+        catch (\InvalidArgumentException $error) { throw new \Lunixi\Sdk\Exception\ConfigurationException($field . ': ' . $error->getMessage()); }
+        if ($value === '0') { throw new \Lunixi\Sdk\Exception\ConfigurationException($field . ' must be a positive integer string in minor units.'); }
+        return $value;
+    }
+
+    /**
+     * Compare signed canonical integers without PHP numeric-string coercion.
+     * @param mixed $left Canonical money string; other types are rejected before coercion.
+     * @param mixed $right Canonical money string; other types are rejected before coercion.
+     */
+    public static function compare($left, $right): int
+    {
+        self::canonical($left, true); self::canonical($right, true);
+        $ln = $left[0] === '-'; $rn = $right[0] === '-';
+        if ($ln !== $rn) { return $ln ? -1 : 1; }
+        $a = $ln ? substr($left, 1) : $left; $b = $rn ? substr($right, 1) : $right;
+        $result = strlen($a) <=> strlen($b);
+        if ($result === 0) { $result = strcmp($a, $b) <=> 0; }
+        return $ln ? -$result : $result;
+    }
+
+    /**
+     * @param mixed $left Canonical money string; other types are rejected before coercion.
+     * @param mixed $right Canonical money string; other types are rejected before coercion.
+     */
+    public static function minimum($left, $right): string
+    {
+        return self::compare($left, $right) <= 0 ? $left : $right;
+    }
+
+    /**
+     * @param mixed $left Canonical money string; other types are rejected before coercion.
+     * @param mixed $right Canonical money string; other types are rejected before coercion.
+     */
+    public static function difference($left, $right): string
+    {
+        return self::compare($left, $right) >= 0 ? self::subtract($left, $right) : '-' . self::subtract($right, $left);
+    }
+
+    /**
+     * Exact nonnegative addition; callers validate their domain's maximum.
+     * @param mixed $left Canonical money string; other types are rejected before coercion.
+     * @param mixed $right Canonical money string; other types are rejected before coercion.
+     */
+    public static function add($left, $right): string
+    {
+        self::canonical($left); self::canonical($right);
+        $i = strlen($left) - 1; $j = strlen($right) - 1; $carry = 0; $result = '';
+        while ($i >= 0 || $j >= 0 || $carry !== 0) {
+            $digit = ($i >= 0 ? ord($left[$i--]) - 48 : 0) + ($j >= 0 ? ord($right[$j--]) - 48 : 0) + $carry;
+            $result = (string) ($digit % 10) . $result; $carry = intdiv($digit, 10);
+        }
+        return $result;
+    }
+
+    /**
+     * Exact nonnegative subtraction; a negative result fails closed.
+     * @param mixed $left Canonical money string; other types are rejected before coercion.
+     * @param mixed $right Canonical money string; other types are rejected before coercion.
+     */
+    public static function subtract($left, $right): string
+    {
+        self::canonical($left); self::canonical($right);
+        if (self::compare($left, $right) < 0) { throw new \InvalidArgumentException('Negative money difference.'); }
+        $j = strlen($right) - 1; $borrow = 0; $result = '';
+        for ($i = strlen($left) - 1; $i >= 0; --$i) {
+            $digit = ord($left[$i]) - 48 - $borrow - ($j >= 0 ? ord($right[$j--]) - 48 : 0);
+            $borrow = $digit < 0 ? 1 : 0; if ($borrow) { $digit += 10; }
+            $result = (string) $digit . $result;
+        }
+        return ltrim($result, '0') ?: '0';
+    }
+
+    /**
+     * Exact floor(value * numerator / denominator), e.g. seller allocation.
+     * @param mixed $value Canonical money string; other types are rejected before coercion.
+     * @param mixed $numerator Canonical money string; other types are rejected before coercion.
+     * @param mixed $denominator Canonical money string; other types are rejected before coercion.
+     */
+    public static function prorate($value, $numerator, $denominator): string
+    {
+        self::canonical($value); self::canonical($numerator); self::canonical($denominator);
+        if ($denominator === '0') { throw new \InvalidArgumentException('A positive denominator is required.'); }
+        $product = '0';
+        foreach (str_split($numerator) as $digit) {
+            $product = $product === '0' ? '0' : $product . '0';
+            for ($i = 0; $i < ord($digit) - 48; ++$i) { $product = self::add($product, $value); }
+        }
+        $remainder = '0'; $quotient = '';
+        foreach (str_split($product) as $digit) {
+            $remainder = ltrim(($remainder === '0' ? '' : $remainder) . $digit, '0') ?: '0'; $q = 0;
+            while (self::compare($remainder, $denominator) >= 0) { $remainder = self::subtract($remainder, $denominator); ++$q; }
+            $quotient .= (string) $q;
+        }
+        return ltrim($quotient, '0') ?: '0';
+    }
+
+    /**
+     * @param mixed $minor Canonical money string; other types are rejected before coercion.
+     */
+    public static function decimal($minor, int $exponent): string
     {
         self::integer($minor);
-        if ($exponent < 0 || $exponent > 3) {
-            throw new \InvalidArgumentException('Unsupported currency exponent.');
-        }
-        if ($exponent === 0) { return (string) $minor; }
-        $digits = str_pad((string) $minor, $exponent + 1, '0', STR_PAD_LEFT);
+        if ($exponent < 0 || $exponent > 3) { throw new \InvalidArgumentException('Unsupported currency exponent.'); }
+        if ($exponent === 0) { return $minor; }
+        $digits = str_pad($minor, $exponent + 1, '0', STR_PAD_LEFT);
         return substr($digits, 0, -$exponent) . '.' . substr($digits, -$exponent);
     }
 
@@ -63,7 +194,7 @@ final class Money
      * @param mixed $decimal
      * @param mixed $rate
      */
-    public static function convertedMinor($decimal, $rate, int $exponent = 2): int
+    public static function convertedMinor($decimal, $rate, int $exponent): string
     {
         if (!function_exists('bcmul')) { throw new \RuntimeException('Exact currency conversion requires ext-bcmath.'); }
         foreach ([$decimal, $rate] as $value) {

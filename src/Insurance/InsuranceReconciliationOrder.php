@@ -57,9 +57,9 @@ final class InsuranceReconciliationOrder extends InsuranceResource
     }
 
     /** Minor units. */
-    public function premiumAmount(): int
+    public function premiumAmount(): string
     {
-        return $this->int('premiumAmount');
+        return $this->money('premiumAmount');
     }
 
     public function currency(): string

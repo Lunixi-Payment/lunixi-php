@@ -91,7 +91,7 @@ final class Checkout
     /** @param array<string,mixed> $order */
     private function snapshot(array $order): OrderSnapshot
     {
-        return new OrderSnapshot($order['merchant_id'], self::key((int) $order['id']), Money::integer($order['amount']), $order['currency']);
+        return new OrderSnapshot($order['merchant_id'], self::key((int) $order['id']), Money::fromStorage($order['amount']), $order['currency']);
     }
     public static function key(int $id): string
     {

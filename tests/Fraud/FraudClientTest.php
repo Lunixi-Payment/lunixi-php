@@ -49,7 +49,7 @@ final class FraudClientTest extends TestCase
         $req = (new EvaluateRequest())
             ->withSubjectType('card_payment')
             ->withProductContext('payment_form')
-            ->withPayment(['amount' => 25000, 'currency' => 'TRY', 'is3D' => false])
+            ->withPayment(['amount' => '25000', 'currency' => 'TRY', 'is3D' => false])
             ->withCustomer(['email' => 'a@b.com', 'isNew' => true]);
         $decision = $fraud->evaluate($req);
 
@@ -69,7 +69,7 @@ final class FraudClientTest extends TestCase
         $this->assertArrayNotHasKey('X-Signature', $call['headers'], 'fraud is bearer-only, not step-up');
         $body = json_decode((string) $call['body'], true);
         $this->assertSame('card_payment', $body['subjectType']);
-        $this->assertSame(25000, $body['payment']['amount']);
+        $this->assertSame('25000', $body['payment']['amount']);
         $this->assertFalse($body['payment']['is3D']);
     }
 

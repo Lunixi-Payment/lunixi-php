@@ -87,7 +87,7 @@ function sample_billing_address(): Address
 }
 
 /** @return BasketItem[] */
-function sample_basket_items(int $amount): array
+function sample_basket_items(string $amount): array
 {
     return [
         new BasketItem([

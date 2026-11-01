@@ -10,7 +10,7 @@ use Lunixi\Sdk\Exception\ConfigurationException;
  * Builds the body for `POST /api/v1/payments/intents` (gateway CreatePaymentIntentDto).
  *
  * `amount` is the only amount field: the basket total in MINOR units (e.g.
- * 1000 = 10.00 TRY, an integer of at least 1), without any installment fee.
+ * 1000 = 10.00 TRY, an canonical integer string of at least 1), without any installment fee.
  * With basket items, their `price` values must add up to `amount`. The buyer
  * picks the installment on the hosted form and the system adds the installment
  * fee to the charged amount. Required: amount, currency, orderId. Everything
@@ -25,18 +25,19 @@ use Lunixi\Sdk\Exception\ConfigurationException;
  */
 final class CreateIntentRequest
 {
-    private int $amount;
+    private string $amount;
     private string $currency;
     private string $orderId;
 
     /** @var array<string,mixed> */
     private array $optional = [];
 
-    public function __construct(int $amount, string $currency, string $orderId)
+    /**
+     * @param mixed $amount Canonical money string; other types are rejected before coercion.
+     */
+    public function __construct($amount, string $currency, string $orderId)
     {
-        if ($amount < 1) {
-            throw new ConfigurationException("CreateIntentRequest 'amount' must be a positive integer (minor units).");
-        }
+        \Lunixi\Sdk\Commerce\Money::positive($amount);
         $currency = strtoupper($currency);
         if (!Currency::isSupported($currency)) {
             throw new ConfigurationException("Unsupported currency '{$currency}'.");
@@ -118,7 +119,7 @@ final class CreateIntentRequest
      * the number of notes within your provider connection limits. Only with no
      * `paymentMethod` or with PROMISSORY_NOTE.
      *
-     * @param list<array{amount:int,dueDate:string}> $schedule
+     * @param list<array{amount:string,dueDate:string}> $schedule
      */
     public function withPromissoryNoteSchedule(array $schedule): self
     {

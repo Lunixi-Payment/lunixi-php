@@ -2,6 +2,96 @@
 
 All notable changes to `lunixi/php-sdk`.
 
+## 1.0.0 — 2026-11-01
+
+- Physical POS payment/item/filter/report money uses canonical signed64 strings; raw numeric/null amounts are rejected before HTTP, malformed monetary 2xx payment replies retain UNKNOWN semantics, and signed webhooks are checked after signature verification.
+
+- Breaking: monetary minor units are canonical integer strings in requests, responses and platform settlement records. Numeric money is rejected; counts, rates and quantities retain their existing types.
+- Use explicit `captureRemaining` / `refundRemaining` SDK operations for full remaining funds; reject null monetary arguments and numeric values from non-strict PHP callers before transport. Native WooCommerce full-operation hooks call these helpers.
+- Convert persisted decimal text with the currency exponent; retain exact values above the JavaScript safe-integer limit up to signed64 for fiat. Capture/refund omission retains its existing meaning; explicit zero is invalid.
+- Align with PHP SDK 1.0.0 and preserve raw webhook signatures, merchant identity checks, operation keys and order-state ownership. See [MIGRATION-1.0.md](MIGRATION-1.0.md) before upgrading.
+
+### Physical POS additions
+
+### Added
+
+- Physical POS (`/api/v1/physical-pos`, product PHYSICAL_POS):
+  `$lunixi->physicalPos()` (`PhysicalPosClient`) starts payments on a device
+  (`createPayment`: SALE, PREAUTH_OPEN, REFUND_UNMATCHED; target by
+  `deviceId`, `vendorCode` + `serialNumber` or `externalRef`; optional sale
+  items with a tax group), reverses them (`createReversal`: VOID, REFUND with
+  amount or items, PREAUTH_CLOSE, PREAUTH_CANCEL), cancels them before they
+  reach the device (`cancelPayment`), and reads payments, transaction trees
+  with their timeline, ambiguous payments, sales and tax summaries and
+  end-of-day lines (`list*` / `iterate*` follow `nextCursor`).
+- `createPayment()` and `createReversal()` require an `Idempotency-Key`:
+  create it with `PhysicalPosClient::newIdempotencyKey()`, store it with the
+  order, then call; after an unknown outcome call again with the same key. A
+  key is sent as given (never trimmed); an empty or blank key is refused.
+  `cancelPayment()` and the management writes generate a key when you pass
+  null.
+- `PhysicalPosPaymentWriteResult`: `payment()`, `replayed()`, `statusCode()`
+  (202 new payment or reversal, 200 replay or cancel) and the
+  `idempotencyKey()` that was sent. A result is returned only for a 2xx with
+  a readable payment.
+- Payment writes run their own attempt loop (same key, same body). No HTTP
+  answer, a 2xx without a readable payment or a 5xx other than the typed
+  "nothing was written" codes (`physical_pos.presence.unavailable`,
+  `signing.unavailable`, `service.busy`, `service.clock_skew`,
+  `service.not_configured`) is uncertain; once an attempt was uncertain the
+  call ends with `PhysicalPosOutcomeUnknownException` (key, attempts and the
+  last error as previous), whatever the last answer was, a 429 included.
+- `$lunixi->physicalPosManagement()` (`PhysicalPosManagementClient`):
+  overview, catalog, stores, registers, logical terminals (bank rows, device
+  link, links, audit) and devices (assignment, storage, lifecycle,
+  retirement, assignments, audit); `requestFields()` lists the accepted body
+  fields.
+- Typed errors: `PhysicalPosCardDataRejectedException` (field path only; also
+  thrown before sending for a card-data key, or a card number — 13–19 digits
+  passing Luhn — in `merchantReference`, an item name or tax group, or the
+  `merchantReference` / `q` filters), `PhysicalPosRateLimitException`
+  (`getRetryAfter()` from `Retry-After`, else `details.retryAfterSeconds`) and
+  `PhysicalPosOutcomeUnknownException`.
+- Webhooks: `PhysicalPosEvents` and
+  `PhysicalPosClient::parseWebhookEvent($rawBody, $headers, $secret)`, which
+  verifies the signature with `WebhookVerifier` before reading the event
+  (payload from `data` or `payloadJson`; webhook amounts are strings,
+  `historySeq` orders the events of a payment). There is no way to read an
+  unverified body.
+- Value lists `PhysicalPosPaymentOperation`, `PhysicalPosPaymentStatus`,
+  `PhysicalPosReversalStatus`.
+- Empty values are never sent: an empty string on an optional field and null
+  on a field that cannot be cleared are dropped. Report `dateFrom` / `dateTo`
+  accept a `DateTimeInterface` (sent as its own calendar day). Ids `.` and
+  `..` are refused. A missing amount reads as null, not 0.
+- Sales made directly on the device: `PhysicalPosEvents::PAYMENT_DEVICE_SALE`
+  (`physical_pos.payment.device_sale`, in `PAYMENT_EVENTS` and `ALL`).
+  `PhysicalPosWebhookEvent::isDeviceSale()` and `original()` (the reversal's
+  original payment `['paymentId', 'origin']`, null on a root; `origin` `API`
+  or `DEVICE_DIRECT`).
+- `PhysicalPosVoidAfterSettlementException` (409
+  `physical_pos.payment.void_after_settlement`, `getAllowedOperation()`): a
+  payment in a device end-of-day can no longer be voided; refund it instead.
+- `PhysicalPosSettlementLine::settlementRef()`, `acquirerRefRaw()`,
+  `acquirerName()` and `deviceName()`; `commandId()` returns null for an
+  end-of-day started on the device. `getDevice()` documents `presence`
+  (connection state, readiness for payment, `notReadyReason`). The acquirer
+  catalog no longer lists `providerCode`.
+
+### Changed
+
+- `ApiException` keeps the response headers (`getResponseHeaders()`,
+  `getResponseHeader()`, `getRetryAfter()`); its constructor takes them as an
+  optional seventh argument, so existing code keeps working.
+- `ApiClient::request()` accepts `retry: false` (send once, no network / 5xx
+  retry) and adds `requestRaw()` and `maxRetries()`.
+
+### Fixed
+
+- `ApiClient` no longer sends an empty body when the request cannot be
+  encoded as JSON (for example invalid UTF-8); it throws
+  `ConfigurationException` before sending.
+
 ## 0.29.6
 
 - Release cURL handles through local scope on both successful and failed requests. PHP 8.5 strict platform error handlers no longer interrupt payment response handling through the deprecated `curl_close()` no-op. PHP 7.4 compatibility, TLS checks, timeout/error handling and redirect refusal remain unchanged.

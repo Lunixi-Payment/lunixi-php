@@ -32,7 +32,7 @@ if ($dueAt === false) {
     throw new InvalidArgumentException('LUNIXI_INVOICE_DATE must be YYYY-MM-DD.');
 }
 
-$request = CreatePaymentLinkRequest::fixed(PaymentLinkUsage::SINGLE_USE, 150000, 'TRY', 'Danışmanlık bedeli')
+$request = CreatePaymentLinkRequest::fixed(PaymentLinkUsage::SINGLE_USE, '150000', 'TRY', 'Danışmanlık bedeli')
     ->withDescription('Fatura ' . $invoiceNo)
     ->withTaxNote('KDV dahil')
     ->withExpiresAt($dueAt->modify('+14 days'))

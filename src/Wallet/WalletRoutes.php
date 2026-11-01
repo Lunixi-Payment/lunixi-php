@@ -27,7 +27,7 @@ namespace Lunixi\Sdk\Wallet;
 final class WalletRoutes
 {
     /** Minor units as a decimal string: `"12550"` is 125.50 TRY. Never a float. */
-    public const AMOUNT_PATTERN = '/^\d{1,18}$/';
+    public const AMOUNT_PATTERN = '/^(0|[1-9][0-9]*)$/D';
 
     /** The gateway trims the header and accepts 1-128 characters. */
     public const IDEMPOTENCY_KEY_MAX = 128;

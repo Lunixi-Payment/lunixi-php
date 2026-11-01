@@ -11,7 +11,7 @@ use Lunixi\Sdk\Exception\ConfigurationException;
  * the plan rules the SDK checks before sending.
  *
  * The plan is either a schedule (`[['amount' => …, 'dueDate' => 'YYYY-MM-DD'], …]`)
- * or a note count (`noteCount`), never both. Checked here: integer minor-unit
+ * or a note count (`noteCount`), never both. Checked here: canonical integer-string minor-unit
  * amounts adding up to the payment amount, `YYYY-MM-DD` calendar dates in
  * ascending order (the same day twice is fine), at most 24 rows, a note count
  * of 1–24. That a due date lies after today (Istanbul calendar) and that the
@@ -31,11 +31,11 @@ final class PromissoryNotePlan
     }
 
     /**
-     * A schedule: 1–24 rows `['amount' => int ≥ 1, 'dueDate' => 'YYYY-MM-DD']`
+     * A schedule: 1–24 rows `['amount' => string ≥ 1, 'dueDate' => 'YYYY-MM-DD']`
      * in ascending date order. Returns the rows as a list.
      *
      * @param array<mixed> $schedule
-     * @return list<array{amount:int,dueDate:string}>
+     * @return list<array{amount:string,dueDate:string}>
      */
     public static function requireSchedule(array $schedule, string $path = 'promissoryNote.schedule'): array
     {
@@ -58,9 +58,7 @@ final class PromissoryNotePlan
                 throw new ConfigurationException(sprintf('%s has unknown field(s): %s. A row is amount and dueDate.', $rowPath, implode(', ', $unknown)));
             }
             $amount = $row['amount'] ?? null;
-            if (!is_int($amount) || $amount < 1) {
-                throw new ConfigurationException(sprintf('%s.amount must be a positive integer in minor units (e.g. 100000 for 1,000.00 TRY).', $rowPath));
-            }
+            \Lunixi\Sdk\Commerce\Money::positive($amount, $rowPath . '.amount');
             $dueDate = $row['dueDate'] ?? null;
             if (!is_string($dueDate) || !self::isCalendarDate($dueDate)) {
                 throw new ConfigurationException(sprintf('%s.dueDate must be a calendar date in YYYY-MM-DD form.', $rowPath));
@@ -82,13 +80,15 @@ final class PromissoryNotePlan
     /**
      * The rows of a schedule must add up to the payment amount.
      *
-     * @param list<array{amount:int,dueDate:string}> $schedule
+     * @param list<array{amount:string,dueDate:string}> $schedule
+     * @param mixed $amount Canonical money string; other types are rejected before coercion.
      */
-    public static function assertMatchesAmount(array $schedule, int $amount, string $path = 'promissoryNote.schedule'): void
+    public static function assertMatchesAmount(array $schedule, $amount, string $path = 'promissoryNote.schedule'): void
     {
-        $total = array_sum(array_column($schedule, 'amount'));
+        $total = '0';
+        foreach ($schedule as $row) { $total = \Lunixi\Sdk\Commerce\Money::add($total, $row['amount']); }
         if ($total !== $amount) {
-            throw new ConfigurationException(sprintf('%s adds up to %d; it must equal amount (%d).', $path, $total, $amount));
+            throw new ConfigurationException(sprintf('%s adds up to %s; it must equal amount (%s).', $path, $total, $amount));
         }
     }
 
@@ -115,9 +115,11 @@ final class PromissoryNotePlan
      *
      * @internal
      * @param array<string,mixed> $block
+     * @param mixed $amount Canonical money string; other types are rejected before coercion.
      */
-    public static function assertBlock(array $block, int $amount, string $path = 'promissoryNote'): void
+    public static function assertBlock(array $block, $amount, string $path = 'promissoryNote'): void
     {
+        \Lunixi\Sdk\Commerce\Money::positive($amount);
         $hasSchedule = isset($block['schedule']);
         $hasNoteCount = isset($block['noteCount']);
         if ($hasSchedule && $hasNoteCount) {

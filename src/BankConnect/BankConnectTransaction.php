@@ -42,9 +42,9 @@ final class BankConnectTransaction extends BankConnectResource
         return $this->direction() === BankTransactionDirection::DEBIT;
     }
 
-    public function amountMinor(): int
+    public function amountMinor(): string
     {
-        return $this->int('amountMinor');
+        return $this->money('amountMinor');
     }
 
     public function currency(): string
@@ -119,9 +119,9 @@ final class BankConnectTransaction extends BankConnectResource
     }
 
     /** Detail only: the account balance after this transaction, when the bank reports it. */
-    public function balanceAfterMinor(): ?int
+    public function balanceAfterMinor(): ?string
     {
-        return $this->intOrNull('balanceAfterMinor');
+        return $this->moneyOrNull('balanceAfterMinor');
     }
 
     /** Detail only. */

@@ -179,7 +179,7 @@ final class SanctionClientTest extends TestCase
             static fn () => (new ScreenNameRequest('Can Örnek'))->withRiskDomains([]),
             static fn () => $sanction->screenWallet('0x01', 'ethereum', ['mode' => 'full']),
             static fn () => $sanction->screenPublicProcurementBan(['onlyActive' => true]),
-            static fn () => $sanction->screenTransaction(['amount' => 100, 'parties' => []]),
+            static fn () => $sanction->screenTransaction(['amount' => '100', 'parties' => []]),
             static fn () => $sanction->screenTransaction(['parties' => [['name' => 'Can Örnek', 'iban' => 'x']]]),
             static fn () => $sanction->screenAccount('TR000000000000000000000000', 'iban', ['merchantId' => 'm_1']),
             static fn () => $sanction->listMonitoringAlerts(['severity' => 'high']),
@@ -253,7 +253,7 @@ final class SanctionClientTest extends TestCase
         $http->pushJson(200, self::envelope(['decision' => 'allow', 'riskScore' => 0, 'caseRequired' => false, 'coverageStatus' => 'COMPLETE']));
         $http->pushJson(200, self::envelope(['isSanctioned' => false, 'isBlacklisted' => false, 'riskScore' => 0, 'hits' => []]));
 
-        $partial = $sanction->screenTransaction(['transactionType' => 'transfer', 'amount' => 100, 'currency' => 'TRY', 'parties' => [['role' => 'payee', 'name' => 'Can Örnek']]]);
+        $partial = $sanction->screenTransaction(['transactionType' => 'transfer', 'amount' => '100', 'currency' => 'TRY', 'parties' => [['role' => 'payee', 'name' => 'Can Örnek']]]);
         $this->assertFalse($partial->isClear());
         $this->assertSame(['parties' => []], $partial->results());
         $this->assertTrue($sanction->screenTransaction(['accounts' => [['accountType' => 'iban', 'value' => 'TR000000000000000000000000']]])->isClear());

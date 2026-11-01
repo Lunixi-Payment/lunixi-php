@@ -64,8 +64,6 @@ final class BankConnectClient
 
     private const BASE = '/api/v1/bank-connect';
 
-    /** `Number.MAX_SAFE_INTEGER`: the gateway's ceiling for an amount filter. */
-    private const MAX_AMOUNT_MINOR = 9007199254740991;
 
     private const DAY_MS = 86400000;
 
@@ -409,10 +407,7 @@ final class BankConnectClient
                 return self::isoTime($key, $value);
             case 'minAmountMinor':
             case 'maxAmountMinor':
-                if (!is_int($value) || $value < 0 || $value > self::MAX_AMOUNT_MINOR) {
-                    throw new ConfigurationException("'{$key}' must be a non-negative integer in minor units (12550 = 125.50 TRY).");
-                }
-                return $value;
+                return \Lunixi\Sdk\Commerce\Money::nonnegative($value, $key);
         }
 
         throw new ConfigurationException("Unknown bank-connect filter '{$key}'.");
@@ -509,7 +504,7 @@ final class BankConnectClient
     /** @param array<string,scalar> $query */
     private static function assertAmountRange(array $query): void
     {
-        if (isset($query['minAmountMinor'], $query['maxAmountMinor']) && $query['minAmountMinor'] > $query['maxAmountMinor']) {
+        if (isset($query['minAmountMinor'], $query['maxAmountMinor']) && \Lunixi\Sdk\Commerce\Money::compare($query['minAmountMinor'], $query['maxAmountMinor']) > 0) {
             throw new ConfigurationException("'minAmountMinor' must not be greater than 'maxAmountMinor'.");
         }
     }

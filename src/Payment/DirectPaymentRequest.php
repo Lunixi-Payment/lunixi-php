@@ -16,7 +16,7 @@ use Lunixi\Sdk\Exception\ConfigurationException;
  * and DirectMethodPaymentRequest::withCard() (withForce3D(true) for 3D Secure).
  *
  * `amount` is the only amount field: the basket total in minor units (an
- * integer of at least 1), without any installment fee; the basket items'
+ * canonical integer string of at least 1), without any installment fee; the basket items'
  * `price` values must add up to it. For an installment charge send
  * withInstallment($count, $quoteToken) with the quote from
  * PaymentClient::installmentOptions(): the system adds the installment fee to
@@ -33,9 +33,10 @@ final class DirectPaymentRequest
 
     /**
      * @param BasketItem[] $basketItems
+     * @param mixed $amount Canonical money string; other types are rejected before coercion.
      */
     public function __construct(
-        int $amount,
+        $amount,
         string $currency,
         string $orderId,
         CardDetails $card,
@@ -44,9 +45,7 @@ final class DirectPaymentRequest
         array $basketItems
     )
     {
-        if ($amount < 1) {
-            throw new ConfigurationException("DirectPaymentRequest 'amount' must be a positive integer (minor units).");
-        }
+        \Lunixi\Sdk\Commerce\Money::positive($amount);
         $currency = strtoupper($currency);
         if (!Currency::isSupported($currency)) {
             throw new ConfigurationException("Unsupported currency '{$currency}'.");

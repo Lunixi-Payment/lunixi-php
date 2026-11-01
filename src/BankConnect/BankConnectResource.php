@@ -9,7 +9,7 @@ namespace Lunixi\Sdk\BankConnect;
  *
  * The gateway leaves a field out when it has no value (an empty text, an
  * amount the bank did not report), so every optional accessor returns null
- * instead of an empty string or 0. Amounts are integers in minor units; times
+ * instead of an empty string or 0. Amounts are canonical integer strings in minor units; times
  * are ISO-8601 strings with a time zone.
  */
 abstract class BankConnectResource
@@ -20,6 +20,7 @@ abstract class BankConnectResource
     /** @param array<string,mixed> $data */
     public function __construct(array $data)
     {
+        \Lunixi\Sdk\Commerce\MoneyPayload::validate($data);
         $this->data = $data;
     }
 
@@ -45,6 +46,16 @@ abstract class BankConnectResource
     {
         $value = $this->data[$key] ?? null;
         return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    protected function money(string $key): string
+    {
+        return \Lunixi\Sdk\Commerce\Money::canonical($this->data[$key] ?? '0', true);
+    }
+
+    protected function moneyOrNull(string $key): ?string
+    {
+        return isset($this->data[$key]) ? \Lunixi\Sdk\Commerce\Money::canonical($this->data[$key], true) : null;
     }
 
     protected function int(string $key): int

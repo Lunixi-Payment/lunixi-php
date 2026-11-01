@@ -16,6 +16,7 @@ final class Plan
     /** @param array<string,mixed> $data */
     public function __construct(array $data)
     {
+        \Lunixi\Sdk\Commerce\MoneyPayload::validate($data);
         $this->data = $data;
     }
 
@@ -50,9 +51,9 @@ final class Plan
     }
 
     /** Plan price in minor units. */
-    public function price(): int
+    public function price(): string
     {
-        return (int) ($this->data['price'] ?? 0);
+        return \Lunixi\Sdk\Commerce\Money::integer($this->data['price'] ?? '0');
     }
 
     public function currency(): string

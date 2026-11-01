@@ -100,9 +100,9 @@ final class BankTransferEvent extends BankConnectResource
         return $this->strOrNull('rail');
     }
 
-    public function amountMinor(): int
+    public function amountMinor(): string
     {
-        return $this->int('amountMinor');
+        return $this->money('amountMinor');
     }
 
     public function currency(): string

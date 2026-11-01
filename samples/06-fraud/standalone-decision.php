@@ -20,7 +20,7 @@ $request = (new EvaluateRequest())
     ->withSubjectType('card_payment')
     ->withProductContext('direct_api')
     ->withPayment([
-        'amount' => 250000, // minor units: 250000 = 2,500.00
+        'amount' => '250000', // minor units: 250000 = 2,500.00
         'currency' => 'TRY',
         'is3D' => false,
         'country' => 'TR',

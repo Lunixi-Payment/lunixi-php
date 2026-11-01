@@ -9,7 +9,7 @@ namespace Lunixi\Sdk\Insurance;
  *
  * The gateway sends `null` for a field without a value (an empty text becomes
  * null), so every optional accessor returns null instead of an empty string.
- * Amounts are integers in minor units; times are ISO-8601 strings with a time
+ * Amounts are canonical integer strings in minor units; times are ISO-8601 strings with a time
  * zone.
  */
 abstract class InsuranceResource
@@ -20,6 +20,7 @@ abstract class InsuranceResource
     /** @param array<string,mixed> $data */
     public function __construct(array $data)
     {
+        \Lunixi\Sdk\Commerce\MoneyPayload::validate($data);
         $this->data = $data;
     }
 
@@ -45,6 +46,16 @@ abstract class InsuranceResource
     {
         $value = $this->data[$key] ?? null;
         return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    protected function money(string $key): string
+    {
+        return \Lunixi\Sdk\Commerce\Money::canonical($this->data[$key] ?? '0', true);
+    }
+
+    protected function moneyOrNull(string $key): ?string
+    {
+        return isset($this->data[$key]) ? \Lunixi\Sdk\Commerce\Money::canonical($this->data[$key], true) : null;
     }
 
     protected function int(string $key): int

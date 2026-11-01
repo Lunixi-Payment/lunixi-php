@@ -42,3 +42,19 @@ targetRules = ["generic-api-key"]
 paths = ['''(?:^|/)tests/Insurance/InsuranceClientTest\.php$''']
 regexTarget = "match"
 regexes = ['''\A\QKEY = 'insurance-test-key-0001'\E\z'''] # gitleaks:allow
+
+[[allowlists]]
+description = "Synthetic idempotency key used only by the offline Physical POS parity test"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''(?:^|/)tests/PhysicalPos/PhysicalPosParityTest\.php$''']
+regexTarget = "line"
+regexes = ['''\A\s*\Qprivate const KEY = 'pos-parity-key-0001';\E\s*\z'''] # gitleaks:allow
+
+[[allowlists]]
+description = "Synthetic UUID in the shared Physical POS idempotency-key validation cases"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''(?:^|/)tests/PhysicalPos/fixtures/physical-pos-parity\.json$''']
+regexTarget = "line"
+regexes = ['''\A\s*\Q"key": "7b0c6a1e-2f8d-4c55-9a51-3f0e8d1c2a90",\E\s*\z'''] # gitleaks:allow

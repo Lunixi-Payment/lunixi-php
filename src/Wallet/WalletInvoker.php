@@ -298,14 +298,14 @@ final class WalletInvoker
     }
 
     /**
-     * Minor units only. A non-negative integer is sent as its decimal string;
-     * a float is refused rather than rounded.
+     * Minor units only. A canonical nonnegative integer string is sent unchanged;
+     * numeric inputs are refused rather than coerced.
      *
      * @param mixed $value
      */
     private static function requireAmount(string $label, $value): string
     {
-        $text = is_int($value) && $value >= 0 ? (string) $value : $value;
+        $text = $value;
         if (!is_string($text) || preg_match(WalletRoutes::AMOUNT_PATTERN, $text) !== 1) {
             throw new ConfigurationException(sprintf(
                 '%s must be minor units as a digit string (e.g. "12550" for 125.50); got %s.',

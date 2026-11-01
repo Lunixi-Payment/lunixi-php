@@ -22,8 +22,8 @@ require_once __DIR__ . '/../_common/bootstrap.php';
 $eventAt = (new DateTimeImmutable('today 20:00', new DateTimeZone('Europe/Istanbul')))->modify('+30 days');
 
 $request = CreatePaymentLinkRequest::itemized(PaymentLinkUsage::MULTI_USE, 'TRY', 'Yıl sonu konseri', [
-    (new PaymentLinkItem('Standart bilet', 45000))->withItemKey('standard')->withQuantityRange(0, 6)->withCapacity(400),
-    (new PaymentLinkItem('Balkon bilet', 30000))->withItemKey('balcony')->withQuantityRange(0, 6)->withCapacity(150),
+    (new PaymentLinkItem('Standart bilet', '45000'))->withItemKey('standard')->withQuantityRange(0, 6)->withCapacity(400),
+    (new PaymentLinkItem('Balkon bilet', '30000'))->withItemKey('balcony')->withQuantityRange(0, 6)->withCapacity(150),
 ])
     ->withEventAt($eventAt)
     ->withExpiresAt($eventAt->modify('-2 hours'))

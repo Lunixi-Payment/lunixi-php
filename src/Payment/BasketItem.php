@@ -54,9 +54,9 @@ final class BasketItem
     private array $data;
 
     /**
-     * @param array<string,mixed> $data Keys: id, price(int minor), name, category1, itemType, category2?,
+     * @param array<string,mixed> $data Keys: id, price(string minor), name, category1, itemType, category2?,
      *   insuranceCategory? (InsuranceItemCategory), insuranceTypes? (string[]), insuranceEligible? (bool),
-     *   insuranceValueAmount? (int minor, one unit), insuranceContext? (array<string,mixed>: the
+     *   insuranceValueAmount? (string minor, one unit), insuranceContext? (array<string,mixed>: the
      *   category's prefill keys, e.g. transportMode, departureAt; no personal data), insuranceData?
      *   (array<string,mixed>: policyholder?, insured? (list), one type object, e.g. tickets; at most
      *   16 KB as JSON). A null value, or an empty insuranceContext or insuranceData, counts as not sent.
@@ -69,16 +69,14 @@ final class BasketItem
                 throw new ConfigurationException("BasketItem '{$key}' is required.");
             }
         }
-        if (!isset($data['price']) || !is_numeric($data['price']) || (int) $data['price'] < 0) {
-            throw new ConfigurationException("BasketItem 'price' is required and must be a non-negative integer (minor units).");
-        }
+        \Lunixi\Sdk\Commerce\Money::nonnegative($data['price'] ?? null, 'price');
         if (!in_array((string) $data['itemType'], self::ITEM_TYPES, true)) {
             throw new ConfigurationException("BasketItem 'itemType' must be PHYSICAL or VIRTUAL.");
         }
 
         $out = [
             'id' => (string) $data['id'],
-            'price' => (int) $data['price'],
+            'price' => $data['price'],
             'name' => (string) $data['name'],
             'category1' => (string) $data['category1'],
             'itemType' => (string) $data['itemType'],
@@ -143,11 +141,7 @@ final class BasketItem
         }
 
         if (isset($data['insuranceValueAmount'])) {
-            if (!is_int($data['insuranceValueAmount']) || $data['insuranceValueAmount'] < 1) {
-                throw new ConfigurationException(
-                    "BasketItem 'insuranceValueAmount' must be a positive integer (minor units, one unit)."
-                );
-            }
+            \Lunixi\Sdk\Commerce\Money::positive($data['insuranceValueAmount'], 'insuranceValueAmount');
             $out['insuranceValueAmount'] = $data['insuranceValueAmount'];
         }
 

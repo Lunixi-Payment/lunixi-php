@@ -21,8 +21,8 @@ $page = $links->list([
 ]);
 sample_print(['count' => $page->count(), 'hasMore' => $page->hasMore(), 'nextCursor' => $page->nextCursor()]);
 
-$collectedMinor = 0;
+$collectedMinor = '0';
 foreach ($links->iterate(['state' => PaymentLinkState::COMPLETED, 'limit' => 100]) as $link) {
-    $collectedMinor += $link->collectedAmountMinor();
+    $collectedMinor = \Lunixi\Sdk\Commerce\Money::add($collectedMinor, $link->collectedAmountMinor());
 }
 sample_print(['completedLinksCollectedMinor' => $collectedMinor]);

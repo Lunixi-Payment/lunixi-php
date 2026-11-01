@@ -19,18 +19,21 @@ final class CreatePlanRequest
     private string $productId;
     private string $code;
     private string $name;
-    private int $price;
+    private string $price;
     private string $currency;
     private BillingRule $billing;
 
     /** @var array<string,mixed> */
     private array $optional = [];
 
+    /**
+     * @param mixed $price Canonical money string; other types are rejected before coercion.
+     */
     public function __construct(
         string $productId,
         string $code,
         string $name,
-        int $price,
+        $price,
         string $currency,
         BillingRule $billing
     ) {
@@ -43,9 +46,7 @@ final class CreatePlanRequest
         if (trim($name) === '') {
             throw new ConfigurationException("CreatePlanRequest 'name' is required.");
         }
-        if ($price < 0) {
-            throw new ConfigurationException("CreatePlanRequest 'price' must be a non-negative integer (minor units).");
-        }
+        \Lunixi\Sdk\Commerce\Money::nonnegative($price, 'price');
         $currency = strtoupper($currency);
         if (!Currency::isSupported($currency)) {
             throw new ConfigurationException("Unsupported currency '{$currency}'.");

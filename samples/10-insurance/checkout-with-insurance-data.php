@@ -36,7 +36,7 @@ use Lunixi\Sdk\Payment\InsuranceItemCategory;
 require_once __DIR__ . '/../_common/bootstrap.php';
 
 const INSURANCE_TYPE = 'TICKET_CANCELLATION';
-const TICKET_PRICE = 100000;
+const TICKET_PRICE = '100000';
 
 $lunixi = sample_client();
 $insurance = $lunixi->insurance();

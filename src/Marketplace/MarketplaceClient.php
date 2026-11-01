@@ -341,8 +341,9 @@ final class MarketplaceClient
      * Resolves the effective commission for a dealer/category at a given MTD volume.
      *
      * @return array<string,mixed>
+     * @param mixed $mtdVolumeMinor Canonical money string; other types are rejected before coercion.
      */
-    public function resolveCommission(string $subDealerId, string $categoryCode = '', ?int $mtdVolumeMinor = null): array
+    public function resolveCommission(string $subDealerId, string $categoryCode = '', $mtdVolumeMinor = null): array
     {
         $query = ['subDealerId' => $subDealerId];
         if ($categoryCode !== '') {

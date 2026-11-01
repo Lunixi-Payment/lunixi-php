@@ -7,7 +7,7 @@ namespace Lunixi\Sdk\Payment;
 /**
  * A payment intent as returned by capture/refund/void/get (the response `data`).
  * Read-only typed accessors over the verified fields; `get()`/`raw()` expose the
- * rest. Amounts are integers in minor units.
+ * rest. Amounts are canonical integer strings in minor units.
  */
 final class PaymentIntent
 {
@@ -17,6 +17,7 @@ final class PaymentIntent
     /** @param array<string,mixed> $data The response `data` object. */
     public function __construct(array $data)
     {
+        \Lunixi\Sdk\Commerce\MoneyPayload::validate($data);
         $this->data = $data;
     }
 
@@ -31,9 +32,9 @@ final class PaymentIntent
         return (string) ($this->data['status'] ?? '');
     }
 
-    public function amount(): int
+    public function amount(): string
     {
-        return (int) ($this->data['amount'] ?? 0);
+        return \Lunixi\Sdk\Commerce\Money::integer($this->data['amount'] ?? '0');
     }
 
     public function currency(): string

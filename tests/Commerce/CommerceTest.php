@@ -18,8 +18,8 @@ use PHPUnit\Framework\TestCase;
 
 final class CommerceTest extends TestCase
 {
-    private function order(): OrderSnapshot { return new OrderSnapshot('merchant-1', 'OC-123', 1990, 'TRY'); }
-    private function payment(string $status = 'CAPTURED', int $amount = 1990): array
+    private function order(): OrderSnapshot { return new OrderSnapshot('merchant-1', 'OC-123', '1990', 'TRY'); }
+    private function payment(string $status = 'CAPTURED', string $amount = '1990'): array
     {
         return ['data' => ['id' => 'pi-1', 'merchantId' => 'merchant-1', 'orderId' => 'OC-123', 'amount' => $amount, 'currency' => 'TRY', 'status' => $status], 'details' => ['capturedAmount' => $status === 'CAPTURED' ? (string) $amount : '0', 'refundedAmount' => '0']];
     }
@@ -38,13 +38,13 @@ final class CommerceTest extends TestCase
     }
     public function testMoneyDoesNotUseFloatingPointOrRoundAwayFractionalCents(): void
     {
-        self::assertSame(1990, Money::minor('19.90'));
-        self::assertSame(1990, Money::minor('19.9000'));
-        self::assertSame(9007199254740991, Money::minor('90071992547409.91'));
-        self::assertSame('19.90', Money::decimal(1990));
-        self::assertSame(19, Money::minor('19', 0));
-        foreach (['19.901', '-1', '1e2', ' 1', '01', '90071992547409.92'] as $bad) {
-            try { Money::minor($bad); self::fail('Accepted invalid money.'); } catch (\InvalidArgumentException $expected) { self::assertNotSame('', $expected->getMessage()); }
+        self::assertSame('1990', Money::minor('19.90', 2));
+        self::assertSame('1990', Money::minor('19.9000', 2));
+        self::assertSame('9007199254740991', Money::minor('90071992547409.91', 2));
+        self::assertSame('19.90', Money::decimal('1990', 2));
+        self::assertSame('19', Money::minor('19', 0));
+        foreach (['19.901', '-1', '1e2', ' 1', '01', '92233720368547758.08'] as $bad) {
+            try { Money::minor($bad, 2); self::fail('Accepted invalid money.'); } catch (\InvalidArgumentException $expected) { self::assertNotSame('', $expected->getMessage()); }
         }
         $this->expectException(\InvalidArgumentException::class); Money::integer(19.9);
     }
@@ -57,11 +57,11 @@ final class CommerceTest extends TestCase
     }
     public function testCurrencyConversionUsesPersistedDecimalRatesAndExactHalfUpRounding(): void
     {
-        self::assertSame(20013, Money::convertedMinor('200.1250', '1.00000000'));
-        self::assertSame(33, Money::convertedMinor('0.1000', '3.33333333'));
-        self::assertSame(125, Money::convertedMinor('1.0000', '125.00000000', 0));
-        self::assertSame(1235, Money::convertedMinor('1.2345', '1.00000000', 3));
-        $this->expectException(\InvalidArgumentException::class); Money::convertedMinor(1.25, '1.0');
+        self::assertSame('20013', Money::convertedMinor('200.1250', '1.00000000', 2));
+        self::assertSame('33', Money::convertedMinor('0.1000', '3.33333333', 2));
+        self::assertSame('125', Money::convertedMinor('1.0000', '125.00000000', 0));
+        self::assertSame('1235', Money::convertedMinor('1.2345', '1.00000000', 3));
+        $this->expectException(\InvalidArgumentException::class); Money::convertedMinor(1.25, '1.0', 2);
     }
     public function testCurrencyExponentsAndUnknownCurrencyFailClosed(): void
     {
@@ -72,18 +72,18 @@ final class CommerceTest extends TestCase
     }
     public function testExtraInstallmentFeeRequiresAuthenticatedOriginalOrderFingerprint(): void
     {
-        $p = $this->payment('CAPTURED', 2100);
+        $p = $this->payment('CAPTURED', '2100');
         try { PaymentEvidence::evaluate($this->order(), 'pi-1', $p); self::fail('Accepted unexplained overcharge.'); } catch (\RuntimeException $expected) {}
         $p['data']['metadataJson'] = json_encode(['lunixiCommerce' => ['fingerprint' => $this->order()->fingerprint()]]);
-        self::assertSame(2100, PaymentEvidence::evaluate($this->order(), 'pi-1', $p)->chargedAmount);
+        self::assertSame('2100', PaymentEvidence::evaluate($this->order(), 'pi-1', $p)->chargedAmount);
     }
     public function testOneCapturedSplitLegNeverCompletesAnOrder(): void
     {
         $p = $this->payment('SETTLED_BY_SPLIT');
         $p['data']['split'] = ['role' => 'PARENT', 'splitPaymentId' => 'split-1'];
-        $s = ['id' => 'split-1', 'orderId' => 'OC-123', 'currency' => 'TRY', 'status' => 'PROCESSING', 'needsReconciliation' => false, 'aggregate' => ['totalAmount' => 1990, 'legsAmount' => 1990, 'amountsBalanced' => true, 'capturedAmount' => 1000, 'compensatedAmount' => 0]];
+        $s = ['id' => 'split-1', 'orderId' => 'OC-123', 'currency' => 'TRY', 'status' => 'PROCESSING', 'needsReconciliation' => false, 'aggregate' => ['totalAmount' => '1990', 'legsAmount' => '1990', 'amountsBalanced' => true, 'capturedAmount' => '1000', 'compensatedAmount' => '0']];
         self::assertSame('pending', PaymentEvidence::evaluate($this->order(), 'pi-1', $p, $s)->state);
-        $s['status'] = 'COMPLETED'; $s['aggregate']['capturedAmount'] = 1990;
+        $s['status'] = 'COMPLETED'; $s['aggregate']['capturedAmount'] = '1990';
         self::assertTrue(PaymentEvidence::evaluate($this->order(), 'pi-1', $p, $s)->isPaid());
         $p['data']['split']['role'] = 'LEG';
         $this->expectException(\RuntimeException::class); PaymentEvidence::evaluate($this->order(), 'pi-1', $p, $s);
@@ -112,7 +112,7 @@ final class CommerceTest extends TestCase
         $http->push(new \RuntimeException('timeout'));
         try { $service->start('123', $this->order(), 'https://shop.example/return'); } catch (\RuntimeException $expected) {}
         $this->expectException(\RuntimeException::class);
-        $service->start('123', new OrderSnapshot('merchant-1', 'OC-123', 2990, 'TRY'), 'https://shop.example/return');
+        $service->start('123', new OrderSnapshot('merchant-1', 'OC-123', '2990', 'TRY'), 'https://shop.example/return');
     }
     public function testWebhookAndOrderUpdateRollbackTogetherThenDuplicateIsHarmless(): void
     {
@@ -170,11 +170,11 @@ final class CommerceTest extends TestCase
         $http->pushJson(201, ['data' => ['paymentId' => 'pi-1', 'token' => 'browser-token']]);
         $service->start('123', $this->order(), 'https://shop.example/return');
         $http->pushJson(200, $this->payment()); $http->push(new \RuntimeException('Lost refund response'));
-        try { $service->mutate('123', 'refund-stable', 'refund', 990, static function (): void {}); self::fail('Expected timeout.'); } catch (\RuntimeException $expected) {}
+        try { $service->mutate('123', 'refund-stable', 'refund', '990', static function (): void {}); self::fail('Expected timeout.'); } catch (\RuntimeException $expected) {}
         foreach ([time() - 23 * 3600, null, time() + 60] as $timestamp) {
             $store->transaction('123', function () use ($store, $timestamp): void { $r = $store->load('123'); $r['operations'][hash('sha256', 'refund-stable')]['createdAt'] = $timestamp; $store->save('123', $r); });
             $count = count($http->calls);
-            try { $service->mutate('123', 'refund-stable', 'refund', 990, static function (): void {}); self::fail('Replayed beyond retention.'); }
+            try { $service->mutate('123', 'refund-stable', 'refund', '990', static function (): void {}); self::fail('Replayed beyond retention.'); }
             catch (\RuntimeException $expected) { self::assertStringContainsString('replay window', $expected->getMessage()); }
             self::assertCount($count, $http->calls);
         }
@@ -189,20 +189,20 @@ final class CommerceTest extends TestCase
         $service->start('123', $this->order(), 'https://shop.example/return');
         $http->pushJson(200, $this->payment());
         $http->push(new \RuntimeException('Lost refund response'));
-        try { $service->mutate('123', 'refund-record-10', 'refund', 990, static function (): void {}); self::fail('Expected timeout.'); } catch (\RuntimeException $expected) {}
+        try { $service->mutate('123', 'refund-record-10', 'refund', '990', static function (): void {}); self::fail('Expected timeout.'); } catch (\RuntimeException $expected) {}
         $first = $http->lastCall();
         self::assertStringEndsWith('/pi-1/refund', $first['url']);
         $http->pushJson(200, ['data' => ['id' => 'pi-1', 'status' => 'PARTIALLY_REFUNDED']]);
         $p = $this->payment('PARTIALLY_REFUNDED'); $p['details'] = ['capturedAmount' => '1990', 'refundedAmount' => '990'];
         $http->pushJson(200, $p);
         $applied = [];
-        $result = $service->mutate('123', 'refund-record-10', 'refund', 990, static function ($d) use (&$applied): void { $applied[] = $d->state; });
+        $result = $service->mutate('123', 'refund-record-10', 'refund', '990', static function ($d) use (&$applied): void { $applied[] = $d->state; });
         self::assertSame($first['headers']['Idempotency-Key'], $http->calls[count($http->calls) - 2]['headers']['Idempotency-Key']);
         self::assertSame('partially_refunded', $result->state);
         self::assertSame(['partially_refunded'], $applied);
         self::assertSame('confirmed', $service->operationStatus('123', 'refund-record-10')['state']);
         $this->expectException(\RuntimeException::class);
-        $service->mutate('123', 'refund-record-10', 'refund', 500, static function (): void {});
+        $service->mutate('123', 'refund-record-10', 'refund', '500', static function (): void {});
     }
     public function testAsyncRefundStaysPendingAndBlocksFreshOperationIdsUntilVerified(): void
     {
@@ -212,11 +212,11 @@ final class CommerceTest extends TestCase
         $http->pushJson(200, $this->payment());
         $http->pushJson(200, ['data' => ['id' => 'pi-1', 'status' => 'CAPTURED']]);
         $http->pushJson(200, $this->payment());
-        $service->mutate('123', 'refund-async', 'refund', 990, static function (): void {});
+        $service->mutate('123', 'refund-async', 'refund', '990', static function (): void {});
         $op = $service->operationStatus('123', 'refund-async');
         self::assertSame('pending', $op['state']); self::assertArrayNotHasKey('key', $op);
         $http->pushJson(200, $this->payment());
-        try { $service->mutate('123', 'another-refund', 'refund', 990, static function (): void {}); self::fail('Allowed a second unresolved refund.'); } catch (\RuntimeException $expected) {}
+        try { $service->mutate('123', 'another-refund', 'refund', '990', static function (): void {}); self::fail('Allowed a second unresolved refund.'); } catch (\RuntimeException $expected) {}
         $p = $this->payment('PARTIALLY_REFUNDED'); $p['details'] = ['capturedAmount' => '1990', 'refundedAmount' => '990'];
         $http->pushJson(200, $p);
         $service->reconcile('123', static function (): void {});
@@ -246,13 +246,13 @@ final class CommerceTest extends TestCase
         $http->pushJson(200, ['data' => ['id' => 'pi-1', 'status' => 'PARTIALLY_CAPTURED']]);
         $partial = $this->payment('PARTIALLY_CAPTURED'); $partial['details']['capturedAmount'] = '990';
         $http->pushJson(200, $partial);
-        $first = $service->mutate('123', 'capture-part-1', 'capture', 990, static function (): void {});
+        $first = $service->mutate('123', 'capture-part-1', 'capture', '990', static function (): void {});
         self::assertSame('partially_captured', $first->state); self::assertFalse($first->isPaid());
         self::assertSame('confirmed', $service->operationStatus('123', 'capture-part-1')['state']);
         $http->pushJson(200, $partial);
         $http->pushJson(200, ['data' => ['id' => 'pi-1', 'status' => 'CAPTURED']]);
         $http->pushJson(200, $this->payment());
-        self::assertTrue($service->mutate('123', 'capture-part-2', 'capture', 1000, static function (): void {})->isPaid());
+        self::assertTrue($service->mutate('123', 'capture-part-2', 'capture', '1000', static function (): void {})->isPaid());
     }
     public function testNewAttemptRequiresAuthenticatedTerminalFailure(): void
     {

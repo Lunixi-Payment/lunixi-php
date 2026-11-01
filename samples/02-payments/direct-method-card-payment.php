@@ -12,7 +12,7 @@ require_once __DIR__ . '/../_common/bootstrap.php';
 // the response carries a REDIRECT action (send the buyer to its redirectUrl()).
 // Without withForce3D() the card is charged without 3D Secure (the bank may
 // still ask for it with the same REDIRECT action).
-$amount = 10050;
+$amount = '10050';
 $request = (new DirectMethodPaymentRequest($amount, 'TRY', 'ORD-DMP-CARD-' . date('YmdHis')))
     ->withCard(new CardDetails([
         'cardHolderName' => 'Ada Yilmaz',

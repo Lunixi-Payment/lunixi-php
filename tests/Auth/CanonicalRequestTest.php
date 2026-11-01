@@ -50,7 +50,7 @@ final class CanonicalRequestTest extends TestCase
 
     public function testDigestForBodyMatchesGatewayFormula(): void
     {
-        $body = '{"amount":1000}';
+        $body = '{"amount":"1000"}';
         $expected = 'SHA-256=' . base64_encode(hash('sha256', $body, true));
 
         $this->assertSame($expected, CanonicalRequest::digestForBody($body));

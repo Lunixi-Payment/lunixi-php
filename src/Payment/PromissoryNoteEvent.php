@@ -30,6 +30,7 @@ final class PromissoryNoteEvent
     /** @param array<string,mixed> $data The event `data`. */
     public function __construct(array $data)
     {
+        \Lunixi\Sdk\Commerce\MoneyPayload::validate($data);
         $this->data = $data;
         $this->note = isset($data['promissoryNote']) && is_array($data['promissoryNote']) ? $data['promissoryNote'] : [];
     }
@@ -69,7 +70,7 @@ final class PromissoryNoteEvent
     /** Minor units as a digit string. */
     public function amountMinor(): string
     {
-        return (string) ($this->note['amountMinor'] ?? '');
+        return \Lunixi\Sdk\Commerce\Money::integer($this->note['amountMinor'] ?? '0');
     }
 
     public function dueDate(): string

@@ -1,4 +1,6 @@
 <p align="center">
+
+> 1.0.0 is unreleased and changes all money to canonical minor-unit strings. Read [the migration guide](MIGRATION-1.0.md).
   <a href="https://lunixi.com">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Lunixi-Payment/lunixi-php/main/.github/assets/lunixi-logo-dark.svg">
@@ -131,13 +133,15 @@ $lunixi = LunixiClient::create([ /* baseUrl, keyId, privateKey, environment */ ]
 
 // 1) Create an intent on the server, hand the token to the browser SDK.
 $intent = $lunixi->payments()->createIntent(
-    (new CreateIntentRequest(1000, 'TRY', 'WC-1042'))->withCallbackUrl('https://shop.example/lunixi/return')
+    (new CreateIntentRequest('1000', 'TRY', 'WC-1042'))->withCallbackUrl('https://shop.example/lunixi/return')
 );
 $token = $intent->token(); // → embedded JS SDK renders/submits the form
 
 // 2) Admin actions (step-up + Idempotency-Key handled for you).
-$lunixi->payments()->capture('pi_123', 500, $stableKey);   // partial capture
-$lunixi->payments()->refund('pi_123', 300, 'return', $stableKey);
+$lunixi->payments()->capture('pi_123', '500', $stableKey);   // partial capture
+$lunixi->payments()->refund('pi_123', '300', 'return', $stableKey);
+$lunixi->payments()->captureRemaining('pi_123', $stableKey);
+$lunixi->payments()->refundRemaining('pi_123', 'return', $stableKey);
 $payment = $lunixi->payments()->get('pi_123');             // reconciliation
 if ($payment->isCaptured()) { /* … */ }
 ```
@@ -149,7 +153,7 @@ if ($payment->isCaptured()) { /* … */ }
 charge) and `DirectMethodPaymentRequest` (`direct/payment`, card included) all
 take it as their first argument.
 
-- It is the basket total in minor units: an integer, at least 1 (`1000` = 10.00
+- It is the basket total in minor units: a canonical integer string, at least 1 (`"1000"` = 10.00
   TRY). A smaller value throws `ConfigurationException`.
 - With basket items, the items' `price` values must add up to `amount`.
 - `amount` does not include an installment fee. For an installment charge send
@@ -176,10 +180,10 @@ Without it, or with `withPreauth(false)`, the amount is captured immediately.
 
 ```php
 $intent = $lunixi->payments()->createIntent(
-    (new CreateIntentRequest(1000, 'TRY', 'WC-1042'))->withPreauth(true)
+    (new CreateIntentRequest('1000', 'TRY', 'WC-1042'))->withPreauth(true)
 );
 // later, once the payment is AUTHORIZED:
-$lunixi->payments()->capture($intent->paymentId(), null, $stableKey);
+$lunixi->payments()->captureRemaining($intent->paymentId(), $stableKey);
 ```
 
 ### Payment methods (Faturana Yansıt, wallets, promissory notes, card)
@@ -199,7 +203,7 @@ $method = $lunixi->payments()->listPaymentMethods()->find(PaymentMethod::MOBILE_
 $provider = $method->providers()[0];   // the one your buyer picked; inputFields(): gsmNumber
 
 // 2) Start the payment (Idempotency-Key required).
-$request = (new DirectMethodPaymentRequest(5000, 'TRY', 'WC-1042'))
+$request = (new DirectMethodPaymentRequest('5000', 'TRY', 'WC-1042'))
     ->withMethodFields(PaymentMethod::MOBILE_BILLING, $provider->providerCode(), ['gsmNumber' => '+905321234567'])
     ->withCallbackUrl('https://shop.example/lunixi/return');
 $result = $lunixi->payments()->directMethodPayment($request, $stableKey);
@@ -275,7 +279,7 @@ if (count($method->providers()) > 1) {
 }
 // PLATFORM without a pick: $providerCode stays null; the platform picks the provider.
 
-$request = (new DirectMethodPaymentRequest(5000, 'TRY', 'WC-1043'))
+$request = (new DirectMethodPaymentRequest('5000', 'TRY', 'WC-1043'))
     ->withMethodFields(PaymentMethod::WALLET, $providerCode, $fields);
 ```
 
@@ -307,14 +311,14 @@ use Lunixi\Sdk\Payment\SplitPaymentRequest;
 
 // Card B in 3 installments: quote with the leg's amount and the stored card's BIN.
 $quote = $lunixi->payments()->installmentOptions(
-    (new InstallmentOptionsRequest(40000, 'TRY'))->withBinOrPan($cardBBin)->withInstallment(3)
+    (new InstallmentOptionsRequest('40000', 'TRY'))->withBinOrPan($cardBBin)->withInstallment(3)
 );
 
-$request = (new SplitPaymentRequest(100000, 'TRY', $cardUserKey))
+$request = (new SplitPaymentRequest('100000', 'TRY', $cardUserKey))
     ->withOrderId('WC-1050')
     ->withCallbackUrl('https://shop.example/lunixi/return')
-    ->addCardLeg($cardAToken, 60000, true)                                         // 3D Secure
-    ->addCardLeg($cardBToken, 40000, false, 3, $quote['data']['quoteToken']);      // 3 installments
+    ->addCardLeg($cardAToken, '60000', true)                                         // 3D Secure
+    ->addCardLeg($cardBToken, '40000', false, 3, $quote['data']['quoteToken']);      // 3 installments
 
 $key = 'split:WC-1050';                       // the identity of this split payment; reuse it on every call
 $split = $lunixi->payments()->createSplitPayment($request, $key);
@@ -351,13 +355,13 @@ $splitProvider = static function (string $code) use ($methods): ?string {
 };
 
 // 2 cards + wallet + Faturana Yansıt = 100000
-$request = (new SplitPaymentRequest(100000, 'TRY', $cardUserKey))
+$request = (new SplitPaymentRequest('100000', 'TRY', $cardUserKey))
     ->withOrderId('WC-1051')
     ->withCallbackUrl('https://shop.example/lunixi/return')
-    ->addCardLeg($cardAToken, 30000, true)
-    ->addCardLeg($cardBToken, 25000, false, 3, $cardBQuoteToken)
-    ->addMethodLeg(PaymentMethod::WALLET, (string) $splitProvider(PaymentMethod::WALLET), 20000, ['gsmNumber' => $buyerGsm])
-    ->addMethodLeg(PaymentMethod::MOBILE_BILLING, (string) $splitProvider(PaymentMethod::MOBILE_BILLING), 25000, ['gsmNumber' => $buyerGsm]);
+    ->addCardLeg($cardAToken, '30000', true)
+    ->addCardLeg($cardBToken, '25000', false, 3, $cardBQuoteToken)
+    ->addMethodLeg(PaymentMethod::WALLET, (string) $splitProvider(PaymentMethod::WALLET), '20000', ['gsmNumber' => $buyerGsm])
+    ->addMethodLeg(PaymentMethod::MOBILE_BILLING, (string) $splitProvider(PaymentMethod::MOBILE_BILLING), '25000', ['gsmNumber' => $buyerGsm]);
 
 $key = 'split:WC-1051';
 $split = $lunixi->payments()->createSplitPayment($request, $key);
@@ -519,15 +523,15 @@ use Lunixi\Sdk\Payment\DirectMethodPaymentRequest;
 use Lunixi\Sdk\Payment\PaymentMethod;
 use Lunixi\Sdk\Payment\PromissoryNoteDocument;
 
-$request = (new DirectMethodPaymentRequest(300000, 'TRY', 'WC-2001'))
+$request = (new DirectMethodPaymentRequest('300000', 'TRY', 'WC-2001'))
     ->withMethodFields(PaymentMethod::PROMISSORY_NOTE, null, [
         'debtorType' => 'INDIVIDUAL',
         'birthDate' => '1990-01-01',
         'address' => ['provinceCode' => '06', 'districtCode' => '1001', 'neighborhoodCode' => '2001', 'line' => 'Example Street 1'],
     ])
     ->withPromissoryNoteSchedule([
-        ['amount' => 100000, 'dueDate' => '2030-01-15'],
-        ['amount' => 200000, 'dueDate' => '2030-02-15'],
+        ['amount' => '100000', 'dueDate' => '2030-01-15'],
+        ['amount' => '200000', 'dueDate' => '2030-02-15'],
     ])
     ->withBuyer($buyer);
 $result = $lunixi->payments()->directMethodPayment($request, $stableKey);   // status CAPTURED, no action
@@ -578,7 +582,7 @@ your server (PCI DSS SAQ-D); most merchants should use `createIntent()`.
 use Lunixi\Sdk\Payment\CardDetails;
 use Lunixi\Sdk\Payment\DirectMethodPaymentRequest;
 
-$request = (new DirectMethodPaymentRequest(15000, 'TRY', 'WC-1042'))
+$request = (new DirectMethodPaymentRequest('15000', 'TRY', 'WC-1042'))
     ->withCard(new CardDetails([
         'cardHolderName' => 'Ada Yilmaz',
         'cardNumber' => '5400000000000004',
@@ -611,7 +615,7 @@ use Lunixi\Sdk\Payment\PaymentLinkUsage;
 
 // Build the body from your own record, not from the current time: a retry with
 // the same Idempotency-Key must send the same body (a different body is 409).
-$request = CreatePaymentLinkRequest::fixed(PaymentLinkUsage::SINGLE_USE, 150000, 'TRY', 'Consulting fee')
+$request = CreatePaymentLinkRequest::fixed(PaymentLinkUsage::SINGLE_USE, '150000', 'TRY', 'Consulting fee')
     ->withExpiresAt($invoice->dueAt())          // DateTimeInterface or ISO-8601, in the future
     ->withReference($invoice->number())
     ->withRecipient(['email' => $invoice->customerEmail()]);
@@ -711,7 +715,7 @@ foreach ($bankConnect->iterateTransactions([
     'bookedFrom' => new DateTimeImmutable('-7 days'),
     'direction' => BankTransactionDirection::CREDIT,
 ]) as $transaction) {
-    // amountMinor is an integer in minor units: 150000 = 1,500.00 TRY.
+    // amountMinor is a canonical integer string in minor units: 150000 = 1,500.00 TRY.
     match_order($transaction->description(), $transaction->amountMinor());
 }
 
@@ -780,7 +784,7 @@ list is in `uncoveredSources()`.
 
 `$lunixi->insurance()` sells and services insurance for your basket items
 (`/api/v1/insurance`, product INSURANCE_SERVICE). Every call is signed; the key
-decides the environment. Amounts are integers in minor units.
+decides the environment. Amounts are canonical integer strings in minor units.
 
 Collecting the premium in your own Lunixi payment:
 
@@ -792,7 +796,7 @@ use Lunixi\Sdk\Payment\InsuranceItemCategory;
 
 $insurance = $lunixi->insurance();
 $ticket = new BasketItem([
-    'id' => 'ticket-1', 'price' => 100000, 'name' => 'Izmir-Ankara train ticket', 'category1' => 'ticket',
+    'id' => 'ticket-1', 'price' => '100000', 'name' => 'Izmir-Ankara train ticket', 'category1' => 'ticket',
     'itemType' => BasketItem::TYPE_VIRTUAL, 'insuranceCategory' => InsuranceItemCategory::TICKET,
     'insuranceTypes' => ['TICKET_CANCELLATION'],
 ]);
@@ -816,7 +820,7 @@ $order = $insurance->createOrder([
 // 4. Pay the insured items plus the premium item; amount is the sum.
 $premium = InsuranceClient::premiumBasketItem($order, 'Ticket cancellation insurance', 'insurance');
 $intent = $lunixi->payments()->createIntent(
-    (new CreateIntentRequest(100000 + $order->premiumAmount(), 'TRY', 'ORD-1042'))
+    (new CreateIntentRequest(\Lunixi\Sdk\Commerce\Money::add('100000', $order->premiumAmount()), 'TRY', 'ORD-1042'))
         ->withBasketItems([$ticket, $premium]) /* buyer, addresses … */,
     'checkout-ORD-1042'
 );

@@ -21,7 +21,7 @@ final class PaymentEvidence
         if (!is_array($metadata) && is_string($p['metadataJson'] ?? null)) { $metadata = json_decode($p['metadataJson'], true); }
         // An installment fee increases finalAmount. Only accept that increase
         // when the authenticated intent echoes our persisted base-order hash.
-        if ($amount < $order->amount() || ($amount !== $order->amount() && (!is_array($metadata) || ($metadata['lunixiCommerce']['fingerprint'] ?? null) !== $order->fingerprint()))) {
+        if (Money::compare($amount, $order->amount()) < 0 || ($amount !== $order->amount() && (!is_array($metadata) || ($metadata['lunixiCommerce']['fingerprint'] ?? null) !== $order->fingerprint()))) {
             throw new \RuntimeException('Payment amount does not match the persisted order.');
         }
         $status = $p['status'] ?? '';
@@ -38,27 +38,27 @@ final class PaymentEvidence
             }
             $captured = Money::integer($a['capturedAmount'] ?? null);
             $compensated = Money::integer($a['compensatedAmount'] ?? null);
-            $refunded = Money::integer($s['refund']['refundedAmount'] ?? 0);
+            $refunded = Money::integer($s['refund']['refundedAmount'] ?? '0');
             $state = 'pending';
-            if ($status === 'SETTLED_BY_SPLIT' && ($s['status'] ?? '') === 'COMPLETED' && $captured === $amount && $compensated === 0) { $state = $refunded === 0 ? 'paid' : ($refunded === $amount ? 'refunded' : 'partially_refunded'); }
-            if (($s['status'] ?? '') === 'VOIDED' && $captured === 0 && $compensated === 0 && Money::integer($a['authorizedAmount'] ?? null) === 0) { $state = 'failed'; }
-            if ($refunded > $captured) { throw new \RuntimeException('Invalid split refund balance.'); }
+            if ($status === 'SETTLED_BY_SPLIT' && ($s['status'] ?? '') === 'COMPLETED' && $captured === $amount && $compensated === '0') { $state = $refunded === '0' ? 'paid' : ($refunded === $amount ? 'refunded' : 'partially_refunded'); }
+            if (($s['status'] ?? '') === 'VOIDED' && $captured === '0' && $compensated === '0' && Money::integer($a['authorizedAmount'] ?? null) === '0') { $state = 'failed'; }
+            if (Money::compare($refunded, $captured) > 0) { throw new \RuntimeException('Invalid split refund balance.'); }
             return new PaymentDecision($state, $paymentId, $amount, $refunded, $ref['splitPaymentId'], $captured, $status);
         }
         $details = $response['details'] ?? $p['details'] ?? [];
         $captured = Money::integer($details['capturedAmount'] ?? null);
         $refunded = Money::integer($details['refundedAmount'] ?? null);
-        if ($captured > $amount || $refunded > $captured) { throw new \RuntimeException('Invalid payment settlement balance.'); }
+        if (Money::compare($captured, $amount) > 0 || Money::compare($refunded, $captured) > 0) { throw new \RuntimeException('Invalid payment settlement balance.'); }
         $state = 'review';
-        if ($status === 'CAPTURED' && $captured === $amount && $refunded === 0) { $state = 'paid'; }
-        elseif ($status === 'PARTIALLY_CAPTURED' && $captured > 0 && $captured < $amount && $refunded === 0) { $state = 'partially_captured'; }
-        elseif ($status === 'AUTHORIZED' && $captured === 0 && $refunded === 0) { $state = 'authorized'; }
-        elseif ($status === 'REFUNDED' && $captured > 0 && $captured === $refunded) { $state = 'refunded'; }
-        elseif ($status === 'PARTIALLY_REFUNDED' && $refunded > 0 && $refunded < $captured) { $state = 'partially_refunded'; }
+        if ($status === 'CAPTURED' && $captured === $amount && $refunded === '0') { $state = 'paid'; }
+        elseif ($status === 'PARTIALLY_CAPTURED' && $captured !== '0' && Money::compare($captured, $amount) < 0 && $refunded === '0') { $state = 'partially_captured'; }
+        elseif ($status === 'AUTHORIZED' && $captured === '0' && $refunded === '0') { $state = 'authorized'; }
+        elseif ($status === 'REFUNDED' && $captured !== '0' && $captured === $refunded) { $state = 'refunded'; }
+        elseif ($status === 'PARTIALLY_REFUNDED' && $refunded !== '0' && Money::compare($refunded, $captured) < 0) { $state = 'partially_refunded'; }
         // FAILED alone does not prove definitive provider failure. The public
         // GET omits outcome certainty, so unknown/legacy failures stay on hold.
-        elseif (in_array($status, ['EXPIRED', 'VOIDED'], true) && $captured === 0) { $state = 'failed'; }
-        elseif (in_array($status, ['INITIATED', 'PROCESSING', 'AWAITING_3D'], true) && $captured === 0) { $state = 'pending'; }
+        elseif (in_array($status, ['EXPIRED', 'VOIDED'], true) && $captured === '0') { $state = 'failed'; }
+        elseif (in_array($status, ['INITIATED', 'PROCESSING', 'AWAITING_3D'], true) && $captured === '0') { $state = 'pending'; }
         return new PaymentDecision($state, $paymentId, $amount, $refunded, null, $captured, $status);
     }
 }

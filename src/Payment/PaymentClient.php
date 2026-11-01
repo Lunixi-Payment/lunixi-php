@@ -121,28 +121,44 @@ final class PaymentClient
         ]);
     }
 
-    /** Captures an authorized payment. Omit $amount for a full capture (else minor units). */
-    public function capture(string $intentId, ?int $amount = null, ?string $idempotencyKey = null): PaymentIntent
+    /**
+     * Captures an explicit positive minor-unit amount; use captureRemaining() for all remaining funds.
+     * @param mixed $amount Canonical money string; other types are rejected before coercion.
+     */
+    public function capture(string $intentId, $amount, ?string $idempotencyKey = null): PaymentIntent
     {
-        $body = ['paymentIntentId' => $intentId];
-        if ($amount !== null) {
-            $body['amount'] = $amount;
-        }
-
-        return $this->mutate($intentId, 'capture', $body, $idempotencyKey);
+        return $this->mutate($intentId, 'capture', [
+            'paymentIntentId' => $intentId,
+            'amount' => \Lunixi\Sdk\Commerce\Money::positive($amount),
+        ], $idempotencyKey);
     }
 
-    /** Refunds a captured payment. Omit $amount for a full refund (else minor units). */
-    public function refund(string $intentId, ?int $amount = null, ?string $reason = null, ?string $idempotencyKey = null): PaymentIntent
+    /** Captures the remaining authorized amount by omitting amount from the signed request. */
+    public function captureRemaining(string $intentId, ?string $idempotencyKey = null): PaymentIntent
     {
-        $body = ['paymentIntentId' => $intentId];
-        if ($amount !== null) {
-            $body['amount'] = $amount;
-        }
+        return $this->mutate($intentId, 'capture', ['paymentIntentId' => $intentId], $idempotencyKey);
+    }
+
+    /**
+     * Refunds an explicit positive minor-unit amount; use refundRemaining() for all refundable funds.
+     * @param mixed $amount Canonical money string; other types are rejected before coercion.
+     */
+    public function refund(string $intentId, $amount, ?string $reason = null, ?string $idempotencyKey = null): PaymentIntent
+    {
+        $body = ['paymentIntentId' => $intentId, 'amount' => \Lunixi\Sdk\Commerce\Money::positive($amount)];
         if ($reason !== null && $reason !== '') {
             $body['reason'] = $reason;
         }
+        return $this->mutate($intentId, 'refund', $body, $idempotencyKey);
+    }
 
+    /** Refunds the remaining refundable amount; the signed request has no amount member. */
+    public function refundRemaining(string $intentId, ?string $reason = null, ?string $idempotencyKey = null): PaymentIntent
+    {
+        $body = ['paymentIntentId' => $intentId];
+        if ($reason !== null && $reason !== '') {
+            $body['reason'] = $reason;
+        }
         return $this->mutate($intentId, 'refund', $body, $idempotencyKey);
     }
 
@@ -509,13 +525,12 @@ final class PaymentClient
      * refund(), which spreads the amount the same way.
      *
      * @throws ApiException
+     * @param mixed $amount Canonical money string; other types are rejected before coercion.
      */
-    public function refundSplitPayment(string $splitPaymentId, int $amount, ?string $reason = null, ?string $idempotencyKey = null): SplitRefundResult
+    public function refundSplitPayment(string $splitPaymentId, $amount, ?string $reason = null, ?string $idempotencyKey = null): SplitRefundResult
     {
         $id = self::requireSplitPaymentId($splitPaymentId);
-        if ($amount < 1) {
-            throw new ConfigurationException('The refund amount must be a positive integer (minor units).');
-        }
+        \Lunixi\Sdk\Commerce\Money::positive($amount);
         $body = ['amount' => $amount];
         if ($reason !== null && $reason !== '') {
             if (strlen($reason) > self::SPLIT_REFUND_REASON_MAX_LENGTH) {
@@ -710,6 +725,7 @@ final class PaymentClient
                 implode(', ', $sent)
             ));
         }
+        \Lunixi\Sdk\Commerce\Money::positive($payload['amount'] ?? null);
     }
 
     /**

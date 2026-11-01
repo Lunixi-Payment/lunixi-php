@@ -16,19 +16,20 @@ use Lunixi\Sdk\Exception\ConfigurationException;
 final class MarketplaceSeller
 {
     private string $subDealerId;
-    private int $amount;
+    private string $amount;
 
     /** @var array<string,mixed>|null */
     private ?array $scenario = null;
 
-    public function __construct(string $subDealerId, int $amount)
+    /**
+     * @param mixed $amount Canonical money string; other types are rejected before coercion.
+     */
+    public function __construct(string $subDealerId, $amount)
     {
         if (trim($subDealerId) === '') {
             throw new ConfigurationException("MarketplaceSeller 'subDealerId' is required.");
         }
-        if ($amount < 1) {
-            throw new ConfigurationException("MarketplaceSeller 'amount' must be a positive integer (minor units).");
-        }
+        \Lunixi\Sdk\Commerce\Money::positive($amount);
         $this->subDealerId = $subDealerId;
         $this->amount = $amount;
     }

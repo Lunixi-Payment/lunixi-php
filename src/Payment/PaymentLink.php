@@ -13,7 +13,7 @@ namespace Lunixi\Sdk\Payment;
  * `counters` and `availability`. A list row carries a subset: the accessors of
  * fields a row does not have return their empty value — call
  * PaymentLinkClient::get() for the full link. `get()`/`raw()` expose every
- * field. Amounts are integers in minor units; times are ISO-8601 UTC strings.
+ * field. Amounts are canonical integer strings in minor units; times are ISO-8601 UTC strings.
  */
 final class PaymentLink
 {
@@ -23,6 +23,7 @@ final class PaymentLink
     /** @param array<string,mixed> $data */
     public function __construct(array $data)
     {
+        \Lunixi\Sdk\Commerce\MoneyPayload::validate($data);
         $this->data = $data;
     }
 
@@ -91,9 +92,9 @@ final class PaymentLink
     }
 
     /** FIXED links only; null otherwise. */
-    public function amountMinor(): ?int
+    public function amountMinor(): ?string
     {
-        return self::intOrNull($this->data['amountMinor'] ?? null);
+        return self::money($this->data['amountMinor'] ?? null);
     }
 
     public function title(): string
@@ -132,9 +133,9 @@ final class PaymentLink
     }
 
     /** Sum of captured amounts, minor units. */
-    public function collectedAmountMinor(): int
+    public function collectedAmountMinor(): string
     {
-        return (int) ($this->counters()['collectedAmountMinor'] ?? $this->data['collectedAmountMinor'] ?? 0);
+        return \Lunixi\Sdk\Commerce\Money::integer($this->counters()['collectedAmountMinor'] ?? $this->data['collectedAmountMinor'] ?? '0');
     }
 
     /**
@@ -198,6 +199,12 @@ final class PaymentLink
     }
 
     /** @param mixed $value */
+    /** @param mixed $value */
+    private static function money($value): ?string
+    {
+        return $value === null ? null : \Lunixi\Sdk\Commerce\Money::integer($value);
+    }
+
     private static function intOrNull($value): ?int
     {
         return is_int($value) || (is_string($value) && ctype_digit($value)) ? (int) $value : null;

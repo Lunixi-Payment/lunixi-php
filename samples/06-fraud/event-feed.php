@@ -26,7 +26,7 @@ $single = $events->record([
     'customerId' => 'cus_88',
     // transfer_* and withdrawal_* events REQUIRE a counterparty.
     'counterparty' => 'TR330006100519786457841326',
-    'amountMinor' => 250000,
+    'amountMinor' => '250000',
     'currency' => 'TRY',
     'direction' => 'outbound',
     'ip' => '203.0.113.7',
@@ -51,7 +51,7 @@ for ($i = 0; $i < 3; $i++) {
         'subjectType' => 'transaction',
         'occurredAt' => gmdate('Y-m-d\TH:i:s\Z'),
         'customerId' => 'cus_88',
-        'amountMinor' => 12900 + $i,
+        'amountMinor' => '12900' + $i,
         'currency' => 'TRY',
     ];
 }

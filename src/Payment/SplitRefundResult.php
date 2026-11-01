@@ -67,27 +67,27 @@ final class SplitRefundResult
         return $this->status() === self::STATUS_COMPLETED;
     }
 
-    public function requestedAmount(): int
+    public function requestedAmount(): string
     {
-        return (int) ($this->data['requestedAmount'] ?? 0);
+        return \Lunixi\Sdk\Commerce\Money::integer($this->data['requestedAmount'] ?? '0');
     }
 
     /** Refunded in this request (minor units). */
-    public function refundedAmount(): int
+    public function refundedAmount(): string
     {
-        return (int) ($this->data['refundedAmount'] ?? 0);
+        return \Lunixi\Sdk\Commerce\Money::integer($this->data['refundedAmount'] ?? '0');
     }
 
     /** What is left to refund after this request. */
-    public function refundableAmount(): int
+    public function refundableAmount(): string
     {
-        return (int) ($this->data['refundableAmount'] ?? 0);
+        return \Lunixi\Sdk\Commerce\Money::integer($this->data['refundableAmount'] ?? '0');
     }
 
     /** Amount of the non-reversible legs (never refunded). */
-    public function nonRefundableAmount(): int
+    public function nonRefundableAmount(): string
     {
-        return (int) ($this->data['nonRefundableAmount'] ?? 0);
+        return \Lunixi\Sdk\Commerce\Money::integer($this->data['nonRefundableAmount'] ?? '0');
     }
 
     /** A completed request repeated with the same key; nothing was sent to the bank. */

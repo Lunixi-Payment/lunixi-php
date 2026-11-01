@@ -11,11 +11,14 @@ final class OrderSnapshot
     private string $merchantId;
     private string $orderId;
     private string $currency;
-    private int $amount;
+    private string $amount;
 
-    public function __construct(string $merchantId, string $orderId, int $amount, string $currency)
+    /**
+     * @param mixed $amount Canonical money string; other types are rejected before coercion.
+     */
+    public function __construct(string $merchantId, string $orderId, $amount, string $currency)
     {
-        if (trim($merchantId) === '' || trim($orderId) === '' || strlen($orderId) > 128 || $amount < 1 || $currency !== strtoupper($currency) || !Currency::isSupported($currency)) {
+        if (trim($merchantId) === '' || trim($orderId) === '' || strlen($orderId) > 128 || $amount === '0' || $currency !== strtoupper($currency) || !Currency::isSupported($currency)) {
             throw new \InvalidArgumentException('Merchant, order, positive amount and supported uppercase currency are required.');
         }
         Money::integer($amount);
@@ -28,7 +31,7 @@ final class OrderSnapshot
     public function merchantId(): string { return $this->merchantId; }
     public function orderId(): string { return $this->orderId; }
     public function currency(): string { return $this->currency; }
-    public function amount(): int { return $this->amount; }
+    public function amount(): string { return $this->amount; }
 
     /** @return array<string,mixed> */
     public function toArray(): array

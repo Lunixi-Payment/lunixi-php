@@ -15,7 +15,7 @@ use Lunixi\Sdk\Commerce\{CheckoutService, Money, OrderSnapshot, PdoLedgerStore, 
 $ledger = new PdoLedgerStore($platformPdo, 'lunixi_');
 $ledger->install(); // installation/migration only
 $service = new CheckoutService($lunixi, $ledger, new SecretBox($serverEncryptionKey));
-$order = new OrderSnapshot($configuredMerchantId, 'store:order:123', Money::minor('19.90'), 'TRY');
+$order = new OrderSnapshot($configuredMerchantId, 'store:order:123', Money::minor('19.90', 2), 'TRY');
 $session = $service->start('store:order:123', $order, 'https://shop.example/lunixi/return');
 ```
 
@@ -63,8 +63,8 @@ Final charged amounts may include a buyer-selected installment fee. An increase 
 
 ```php
 // Native admin route must check its permission and CSRF token first.
-$service->mutate($orderKey, 'native-refund:456', 'refund', 990, $applyDecision);
-$service->mutate($orderKey, 'native-capture:789', 'capture', 1990, $applyDecision);
+$service->mutate($orderKey, 'native-refund:456', 'refund', '990', $applyDecision);
+$service->mutate($orderKey, 'native-capture:789', 'capture', '1990', $applyDecision);
 $service->mutate($orderKey, 'native-void:890', 'void', null, $applyDecision);
 ```
 

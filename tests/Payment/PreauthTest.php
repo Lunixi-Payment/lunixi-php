@@ -51,7 +51,7 @@ final class PreauthTest extends TestCase
     private function directRequest(): DirectPaymentRequest
     {
         return new DirectPaymentRequest(
-            1000,
+            '1000',
             'TRY',
             'o1',
             new CardDetails(['cardNumber' => '5400000000000004']),
@@ -65,7 +65,7 @@ final class PreauthTest extends TestCase
                 'city' => 'Istanbul', 'country' => 'TR',
             ]),
             [
-                new BasketItem(['id' => 'i1', 'price' => 1000, 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => BasketItem::TYPE_PHYSICAL]),
+                new BasketItem(['id' => 'i1', 'price' => '1000', 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => BasketItem::TYPE_PHYSICAL]),
             ]
         );
     }
@@ -80,7 +80,7 @@ final class PreauthTest extends TestCase
 
     public function testIntentWithPreauthWritesTheTypedFieldOnly(): void
     {
-        $body = (new CreateIntentRequest(1000, 'TRY', 'WC-1'))
+        $body = (new CreateIntentRequest('1000', 'TRY', 'WC-1'))
             ->withMetadata(['wc_order' => '1'])
             ->withPreauth(true)
             ->toArray();
@@ -91,7 +91,7 @@ final class PreauthTest extends TestCase
 
     public function testIntentWithPreauthFalseIsAnExplicitFalse(): void
     {
-        $body = (new CreateIntentRequest(1000, 'TRY', 'WC-2'))->withPreauth(false)->toArray();
+        $body = (new CreateIntentRequest('1000', 'TRY', 'WC-2'))->withPreauth(false)->toArray();
 
         $this->assertFalse($body['preauth']);
         $this->assertArrayNotHasKey('metadata', $body);
@@ -99,14 +99,14 @@ final class PreauthTest extends TestCase
 
     public function testIntentWithoutPreauthSendsNoField(): void
     {
-        $body = (new CreateIntentRequest(1000, 'TRY', 'WC-3'))->toArray();
+        $body = (new CreateIntentRequest('1000', 'TRY', 'WC-3'))->toArray();
 
         $this->assertArrayNotHasKey('preauth', $body);
     }
 
     public function testDeprecatedWithAutoCaptureFalseIsPreauthTrueWithoutMetadata(): void
     {
-        $body = (new CreateIntentRequest(1000, 'TRY', 'WC-4'))->withAutoCapture(false)->toArray();
+        $body = (new CreateIntentRequest('1000', 'TRY', 'WC-4'))->withAutoCapture(false)->toArray();
 
         $this->assertTrue($body['preauth']);
         $this->assertArrayNotHasKey('metadata', $body, 'withAutoCapture() no longer writes metadata.autoCapture');
@@ -114,7 +114,7 @@ final class PreauthTest extends TestCase
 
     public function testDeprecatedWithAutoCaptureTrueIsPreauthFalse(): void
     {
-        $body = (new CreateIntentRequest(1000, 'TRY', 'WC-5'))->withAutoCapture(true)->toArray();
+        $body = (new CreateIntentRequest('1000', 'TRY', 'WC-5'))->withAutoCapture(true)->toArray();
 
         $this->assertFalse($body['preauth']);
         $this->assertArrayNotHasKey('metadata', $body);
@@ -122,7 +122,7 @@ final class PreauthTest extends TestCase
 
     public function testDeprecatedWithAutoCaptureLeavesMerchantMetadataUntouched(): void
     {
-        $body = (new CreateIntentRequest(1000, 'TRY', 'WC-6'))
+        $body = (new CreateIntentRequest('1000', 'TRY', 'WC-6'))
             ->withMetadata(['wc_order' => '6'])
             ->withAutoCapture(false)
             ->toArray();
@@ -153,7 +153,7 @@ final class PreauthTest extends TestCase
         [$api, $http] = $this->api();
         $http->pushJson(201, ['success' => true, 'paymentId' => 'pi_1', 'token' => 'tok_1', 'checkoutFormContent' => '']);
 
-        (new PaymentClient($api))->createIntent((new CreateIntentRequest(1000, 'TRY', 'WC-7'))->withAutoCapture(false), 'idem-7');
+        (new PaymentClient($api))->createIntent((new CreateIntentRequest('1000', 'TRY', 'WC-7'))->withAutoCapture(false), 'idem-7');
 
         $this->assertStringEndsWith('/api/v1/payments/intents', $http->lastCall()['url']);
         $body = self::body($http);
@@ -172,7 +172,7 @@ final class PreauthTest extends TestCase
     {
         [$api, $http] = $this->api();
         $http->pushJson(200, ['status' => 'success', 'data' => ['paymentId' => 'pi_d', 'status' => 'AUTHORIZED']]);
-        $request = (new DirectMethodPaymentRequest(1000, 'TRY', 'o1'))
+        $request = (new DirectMethodPaymentRequest('1000', 'TRY', 'o1'))
             ->withCard(new CardDetails(['cardNumber' => '5400000000000004']))
             ->withPreauth(true);
         if ($force3D) {
@@ -196,8 +196,8 @@ final class PreauthTest extends TestCase
         $http->pushJson(201, ['success' => true, 'paymentId' => 'pi_m', 'token' => 'tok_m', 'checkoutFormContent' => '<script></script>']);
 
         (new MarketplaceClient($api))->createCheckoutIntent(
-            (new CreateIntentRequest(100000, 'TRY', 'WC-8'))->withPreauth(true),
-            [new MarketplaceSeller('d_alice', 100000)],
+            (new CreateIntentRequest('100000', 'TRY', 'WC-8'))->withPreauth(true),
+            [new MarketplaceSeller('d_alice', '100000')],
             MarketplaceClient::POLICY_ALL_OR_NOTHING,
             'idem-mp-8'
         );
@@ -221,7 +221,7 @@ final class PreauthTest extends TestCase
         $http->pushJson(200, ['success' => true, 'data' => ['id' => 'pi_m', 'status' => 'AUTHORIZED']]);
         $marketplace = new MarketplaceClient($api);
         $request = $this->directRequest()->withPreauth(true);
-        $sellers = [new MarketplaceSeller('d_alice', 600), new MarketplaceSeller('d_bob', 400)];
+        $sellers = [new MarketplaceSeller('d_alice', '600'), new MarketplaceSeller('d_bob', '400')];
 
         $threeDS
             ? $marketplace->chargeMarketplaceCard3d($request, $sellers, MarketplaceClient::POLICY_PARTIAL_ALLOWED, 'idem-mp')

@@ -57,9 +57,9 @@ final class PromissoryNotes
     }
 
     /** Minor units. */
-    public function totalAmount(): int
+    public function totalAmount(): string
     {
-        return (int) ($this->data['totalAmount'] ?? 0);
+        return \Lunixi\Sdk\Commerce\Money::integer($this->data['totalAmount'] ?? '0');
     }
 
     /** @return PromissoryNote[] */

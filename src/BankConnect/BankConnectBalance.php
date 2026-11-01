@@ -21,19 +21,19 @@ final class BankConnectBalance extends BankConnectResource
         return $this->str('currency');
     }
 
-    public function balanceMinor(): int
+    public function balanceMinor(): string
     {
-        return $this->int('balanceMinor');
+        return $this->money('balanceMinor');
     }
 
-    public function availableMinor(): ?int
+    public function availableMinor(): ?string
     {
-        return $this->intOrNull('availableMinor');
+        return $this->moneyOrNull('availableMinor');
     }
 
-    public function blockedMinor(): ?int
+    public function blockedMinor(): ?string
     {
-        return $this->intOrNull('blockedMinor');
+        return $this->moneyOrNull('blockedMinor');
     }
 
     /** The time the bank reported this balance for. */
@@ -43,14 +43,14 @@ final class BankConnectBalance extends BankConnectResource
     }
 
     /** Available balance without the overdraft line; null when the bank does not report it separately. */
-    public function availableWithoutOverdraftMinor(): ?int
+    public function availableWithoutOverdraftMinor(): ?string
     {
-        return $this->intOrNull('availableWithoutOverdraftMinor');
+        return $this->moneyOrNull('availableWithoutOverdraftMinor');
     }
 
     /** The unused overdraft line; null when the bank does not report it. */
-    public function overdraftAvailableMinor(): ?int
+    public function overdraftAvailableMinor(): ?string
     {
-        return $this->intOrNull('overdraftAvailableMinor');
+        return $this->moneyOrNull('overdraftAvailableMinor');
     }
 }

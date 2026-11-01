@@ -43,10 +43,10 @@ final class MarketplaceClientTest extends TestCase
         [$mp, $http] = $this->make();
         $http->pushJson(201, ['success' => true, 'paymentId' => 'pi_1', 'token' => 'tok_1', 'checkoutFormContent' => '<script></script>']);
 
-        $req = new CreateIntentRequest(100000, 'TRY', 'WC-7');
+        $req = new CreateIntentRequest('100000', 'TRY', 'WC-7');
         $sellers = [
-            new MarketplaceSeller('d_alice', 60000),
-            (new MarketplaceSeller('d_bob', 40000))->withScenario(['type' => 'DYNAMIC_RATE', 'ratePercent' => '5']),
+            new MarketplaceSeller('d_alice', '60000'),
+            (new MarketplaceSeller('d_bob', '40000'))->withScenario(['type' => 'DYNAMIC_RATE', 'ratePercent' => '5']),
         ];
         $intent = $mp->createCheckoutIntent($req, $sellers, MarketplaceClient::POLICY_ALL_OR_NOTHING, 'idem-mp-1');
 
@@ -59,7 +59,7 @@ final class MarketplaceClientTest extends TestCase
         $this->assertArrayHasKey('X-Signature', $call['headers'], 'marketplace checkout init is step-up');
         $this->assertSame('idem-mp-1', $call['headers']['Idempotency-Key']);
         $body = json_decode((string) $call['body'], true);
-        $this->assertSame(100000, $body['amount']);
+        $this->assertSame('100000', $body['amount']);
         $this->assertSame('ALL_OR_NOTHING', $body['multiSellerPolicy']);
         $this->assertCount(2, $body['sellers']);
         $this->assertSame('d_alice', $body['sellers'][0]['subDealerId']);
@@ -130,7 +130,7 @@ final class MarketplaceClientTest extends TestCase
     public function testSellerRequiresPositiveAmount(): void
     {
         $this->expectException(ConfigurationException::class);
-        new MarketplaceSeller('d_1', 0);
+        new MarketplaceSeller('d_1', '0');
     }
 
     public function testCreateCheckoutIntentThrowsWhenNoToken(): void
@@ -140,7 +140,7 @@ final class MarketplaceClientTest extends TestCase
         $http->pushJson(200, ['success' => false, 'code' => 'marketplace.payment.seller_not_eligible', 'message' => 'seller not eligible']);
 
         $this->expectException(\Lunixi\Sdk\Exception\ApiException::class);
-        $mp->createCheckoutIntent(new CreateIntentRequest(1000, 'TRY', 'o1'), [new MarketplaceSeller('d_1', 1000)]);
+        $mp->createCheckoutIntent(new CreateIntentRequest('1000', 'TRY', 'o1'), [new MarketplaceSeller('d_1', '1000')]);
     }
 
     public function testActivateDealerRoute(): void
@@ -158,11 +158,11 @@ final class MarketplaceClientTest extends TestCase
     {
         [$mp, $http] = $this->make();
         $http->pushJson(200, ['success' => true, 'payoutId' => 'po_1']);
-        $mp->createPayout(['subDealerId' => 'd_1', 'amountMinor' => 5000, 'currency' => 'TRY']);
+        $mp->createPayout(['subDealerId' => 'd_1', 'amountMinor' => '5000', 'currency' => 'TRY']);
         $this->assertStringEndsWith('/api/v1/marketplace/payouts', $http->lastCall()['url']);
 
         $http->pushJson(200, ['success' => true, 'rateBps' => 250]);
-        $mp->resolveCommission('d_1', 'ELECTRONICS', 100000);
+        $mp->resolveCommission('d_1', 'ELECTRONICS', '100000');
         $url = $http->lastCall()['url'];
         $this->assertStringContainsString('/api/v1/marketplace/commission/resolve', $url);
         $this->assertStringContainsString('subDealerId=d_1', $url);

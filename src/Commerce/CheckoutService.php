@@ -43,7 +43,7 @@ final class CheckoutService
             $this->store->save($orderKey, $r);
             return $r;
         });
-        if (($record['capturedAmount'] ?? 0) > 0 || in_array($record['state'], ['paid', 'authorized', 'partially_captured', 'partially_refunded', 'refunded', 'failed'], true)) {
+        if (Money::compare($record['capturedAmount'] ?? '0', '0') > 0 || in_array($record['state'], ['paid', 'authorized', 'partially_captured', 'partially_refunded', 'refunded', 'failed'], true)) {
             throw new \RuntimeException('This attempt has concluded; reconcile the order before another checkout.');
         }
         if ($record['paymentId'] !== '' && $record['token'] !== '') {
@@ -83,10 +83,10 @@ final class CheckoutService
         $p = $response['data'] ?? $response;
         $split = is_array($p['split'] ?? null) ? $this->client->payments()->getSplitPayment($p['split']['splitPaymentId'])->raw() : null;
         $decision = PaymentEvidence::evaluate(OrderSnapshot::fromArray($r['snapshot']), $r['paymentId'], $response, $split);
-        if ($decision->state !== 'failed' || !in_array($decision->gatewayStatus, ['VOIDED', 'EXPIRED'], true) || $decision->capturedAmount !== 0 || $decision->refundedAmount !== 0 || $decision->splitId !== null) { throw new \RuntimeException('The previous payment has not reached a verified terminal failure.'); }
+        if ($decision->state !== 'failed' || !in_array($decision->gatewayStatus, ['VOIDED', 'EXPIRED'], true) || $decision->capturedAmount !== '0' || $decision->refundedAmount !== '0' || $decision->splitId !== null) { throw new \RuntimeException('The previous payment has not reached a verified terminal failure.'); }
         $this->store->transaction($orderKey, function () use ($orderKey, $r): void {
             $current = $this->store->load($orderKey);
-            if ($current === null || $current['key'] !== $r['key'] || ($current['capturedAmount'] ?? 0) > 0 || in_array($current['state'], ['paid', 'partially_refunded', 'refunded'], true)) { throw new \RuntimeException('Attempt changed while checking failure.'); }
+            if ($current === null || $current['key'] !== $r['key'] || Money::compare($current['capturedAmount'] ?? '0', '0') > 0 || in_array($current['state'], ['paid', 'partially_refunded', 'refunded'], true)) { throw new \RuntimeException('Attempt changed while checking failure.'); }
             $history = $current['history'] ?? [];
             $history[] = ['paymentId' => $current['paymentId'], 'state' => 'failed', 'createdAt' => $current['createdAt'], 'operations' => $current['operations'] ?? []];
             $current['history'] = $history;
@@ -118,10 +118,11 @@ final class CheckoutService
      * operationId is a durable platform refund/capture/void identifier, not a
      * fresh random value per HTTP request. Lost responses retry this same ID.
      * The mutation response never changes an order: authenticated GET does.
+     * @param mixed $amount Canonical money string; other types are rejected before coercion.
      */
-    public function mutate(string $orderKey, string $operationId, string $action, ?int $amount, callable $apply): PaymentDecision
+    public function mutate(string $orderKey, string $operationId, string $action, $amount, callable $apply): PaymentDecision
     {
-        if (!in_array($action, ['refund', 'capture', 'void'], true) || trim($operationId) === '' || strlen($operationId) > 191 || ($action !== 'void' && ($amount === null || $amount < 1)) || ($action === 'void' && $amount !== null)) {
+        if (!in_array($action, ['refund', 'capture', 'void'], true) || trim($operationId) === '' || strlen($operationId) > 191 || ($action !== 'void' && ($amount === null || $amount === '0')) || ($action === 'void' && $amount !== null)) {
             throw new \InvalidArgumentException('A stable operation ID and valid mutation amount/action are required.');
         }
         if ($amount !== null) { Money::integer($amount); }
@@ -138,7 +139,7 @@ final class CheckoutService
             $p = $response['data'] ?? $response;
             $split = is_array($p['split'] ?? null) ? $this->client->payments()->getSplitPayment($p['split']['splitPaymentId'])->raw() : null;
             $e = PaymentEvidence::evaluate(OrderSnapshot::fromArray($r['snapshot']), $r['paymentId'], $response, $split);
-            if (($action === 'refund' && (!in_array($e->state, ['paid', 'partially_captured', 'partially_refunded'], true) || $amount > $e->capturedAmount - $e->refundedAmount)) || ($action === 'capture' && (!in_array($e->state, ['authorized', 'partially_captured'], true) || $amount > $e->chargedAmount - $e->capturedAmount || $e->splitId !== null)) || ($action === 'void' && ($e->state !== 'authorized' || $e->splitId !== null))) {
+            if (($action === 'refund' && (!in_array($e->state, ['paid', 'partially_captured', 'partially_refunded'], true) || Money::compare($amount, Money::subtract($e->capturedAmount, $e->refundedAmount)) > 0)) || ($action === 'capture' && (!in_array($e->state, ['authorized', 'partially_captured'], true) || Money::compare($amount, Money::subtract($e->chargedAmount, $e->capturedAmount)) > 0 || $e->splitId !== null)) || ($action === 'void' && ($e->state !== 'authorized' || $e->splitId !== null))) {
                 throw new \RuntimeException('Authenticated payment state/balance does not permit this mutation.');
             }
             $existing = $this->store->transaction($orderKey, function () use ($orderKey, $r, $opId, $action, $amount, $e): array {
@@ -253,10 +254,10 @@ final class CheckoutService
             }
             // Delayed observations cannot downgrade already captured/refunded orders.
             $rank = ['reserved' => 0, 'pending' => 0, 'review' => 0, 'failed' => 1, 'authorized' => 2, 'partially_captured' => 3, 'paid' => 4, 'partially_refunded' => 5, 'refunded' => 6];
-            $capturedBefore = $current['capturedAmount'] ?? 0;
+            $capturedBefore = $current['capturedAmount'] ?? '0';
             $releasedAuthorization = $current['state'] === 'authorized' && $decision->state === 'failed' && in_array($decision->gatewayStatus, ['VOIDED', 'EXPIRED'], true);
-            if ($decision->capturedAmount < $capturedBefore || $decision->refundedAmount < ($current['refundedAmount'] ?? 0) || (($rank[$decision->state] ?? 0) < ($rank[$current['state']] ?? 0) && !$releasedAuthorization && $decision->capturedAmount <= $capturedBefore)) { return self::storedDecision($current); }
-            if ($current['state'] !== $decision->state || ($current['refundedAmount'] ?? 0) !== $decision->refundedAmount || $capturedBefore !== $decision->capturedAmount) { $apply($decision); }
+            if (Money::compare($decision->capturedAmount, $capturedBefore) < 0 || Money::compare($decision->refundedAmount, $current['refundedAmount'] ?? '0') < 0 || (($rank[$decision->state] ?? 0) < ($rank[$current['state']] ?? 0) && !$releasedAuthorization && Money::compare($decision->capturedAmount, $capturedBefore) <= 0)) { return self::storedDecision($current); }
+            if ($current['state'] !== $decision->state || ($current['refundedAmount'] ?? '0') !== $decision->refundedAmount || $capturedBefore !== $decision->capturedAmount) { $apply($decision); }
             foreach ($current['operations'] ?? [] as $id => $op) {
                 if (self::operationConfirmed($op, $decision)) { $current['operations'][$id]['state'] = 'confirmed'; }
             }
@@ -287,14 +288,14 @@ final class CheckoutService
     /** @param array<string,mixed> $record */
     private static function storedDecision(array $record): PaymentDecision
     {
-        return new PaymentDecision($record['state'], $record['paymentId'], $record['chargedAmount'] ?? $record['snapshot']['amount'], $record['refundedAmount'] ?? 0, $record['splitId'] ?? null, $record['capturedAmount'] ?? 0, $record['gatewayStatus'] ?? '');
+        return new PaymentDecision($record['state'], $record['paymentId'], $record['chargedAmount'] ?? $record['snapshot']['amount'], $record['refundedAmount'] ?? '0', $record['splitId'] ?? null, $record['capturedAmount'] ?? '0', $record['gatewayStatus'] ?? '');
     }
 
     /** @param array<string,mixed> $operation */
     private static function operationConfirmed(array $operation, PaymentDecision $decision): bool
     {
-        if ($operation['action'] === 'refund') { return $decision->refundedAmount >= $operation['initialRefunded'] + $operation['amount']; }
-        if ($operation['action'] === 'capture') { return $decision->capturedAmount >= $operation['initialCaptured'] + $operation['amount']; }
-        return $decision->state === 'failed' && $decision->capturedAmount === 0;
+        if ($operation['action'] === 'refund') { return Money::compare($decision->refundedAmount, Money::add($operation['initialRefunded'], $operation['amount'])) >= 0; }
+        if ($operation['action'] === 'capture') { return Money::compare($decision->capturedAmount, Money::add($operation['initialCaptured'], $operation['amount'])) >= 0; }
+        return $decision->state === 'failed' && $decision->capturedAmount === '0';
     }
 }

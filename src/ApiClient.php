@@ -8,6 +8,7 @@ use Lunixi\Sdk\Auth\CanonicalRequest;
 use Lunixi\Sdk\Auth\Ed25519Signer;
 use Lunixi\Sdk\Auth\TokenManager;
 use Lunixi\Sdk\Exception\ApiException;
+use Lunixi\Sdk\Exception\ConfigurationException;
 use Lunixi\Sdk\Http\HttpClientInterface;
 use Lunixi\Sdk\Http\HttpResponse;
 
@@ -20,6 +21,9 @@ use Lunixi\Sdk\Http\HttpResponse;
  *   - 401            → invalidate token, re-auth, retry once (auth was rejected → no mutation occurred).
  *   - network / 5xx  → retry ONLY when the call is idempotent (GET/HEAD, or an Idempotency-Key is set).
  *   - 4xx            → never retried; thrown as ApiException with the gateway error code.
+ *   - `retry: false` → sent once (no network / 5xx retry) for callers that run their own attempt loop.
+ *
+ * A body that cannot be JSON-encoded throws ConfigurationException before anything is sent.
  */
 final class ApiClient
 {
@@ -56,12 +60,19 @@ final class ApiClient
         $this->http = $http;
     }
 
+    /** Retries the configuration allows after a failed attempt (for callers running their own attempt loop). */
+    public function maxRetries(): int
+    {
+        return $this->config->maxRetries();
+    }
+
     /**
      * @param string                              $method  HTTP method.
      * @param string                              $path    Path beginning with "/" (signed verbatim as the canonical URL).
      * @param array<string,mixed>|\stdClass|null  $body    JSON body for the request, or null. An empty
      *   `\stdClass` sends `{}` (an empty PHP array would encode as `[]`).
-     * @param array{stepUp?:bool, idempotencyKey?:string|null, query?:array<string,scalar>} $options
+     * @param array{stepUp?:bool, idempotencyKey?:string|null, query?:array<string,scalar>, retry?:bool} $options
+     *   `retry` (default true): false sends the request once — no network / 5xx retry (401 re-auth still applies).
      * @return array<string,mixed> Decoded JSON response.
      * @throws ApiException
      */
@@ -71,7 +82,19 @@ final class ApiClient
             throw new \InvalidArgumentException('The request body must be an array, a stdClass or null.');
         }
 
-        return $this->send($method, $path, $body, $options, self::ACCEPT_JSON)->json();
+        $moneyContract = \Lunixi\Sdk\Commerce\MoneyPayload::supports($path);
+        if ($moneyContract) {
+            try {
+                \Lunixi\Sdk\Commerce\MoneyPayload::validateOperationAmount($method, $path, $body);
+                \Lunixi\Sdk\Commerce\MoneyPayload::validate($body);
+                \Lunixi\Sdk\Commerce\MoneyPayload::validate($options['query'] ?? []);
+            } catch (\InvalidArgumentException $error) {
+                throw new \Lunixi\Sdk\Exception\ConfigurationException($error->getMessage());
+            }
+        }
+        $response = $this->send($method, $path, $body, $options, self::ACCEPT_JSON)->json();
+        if ($moneyContract) { \Lunixi\Sdk\Commerce\MoneyPayload::validate($response); }
+        return $response;
     }
 
     /**
@@ -94,8 +117,25 @@ final class ApiClient
     }
 
     /**
+     * Same as {@see request()} but returns the raw response, so a caller can
+     * tell an empty or non-JSON 2xx body apart from a JSON one.
+     *
      * @param array<string,mixed>|\stdClass|null $body
-     * @param array{stepUp?:bool, idempotencyKey?:string|null, query?:array<string,scalar>} $options
+     * @param array{stepUp?:bool, idempotencyKey?:string|null, query?:array<string,scalar>, retry?:bool} $options
+     * @throws ApiException
+     */
+    public function requestRaw(string $method, string $path, $body = null, array $options = []): HttpResponse
+    {
+        if ($body !== null && !is_array($body) && !$body instanceof \stdClass) {
+            throw new \InvalidArgumentException('The request body must be an array, a stdClass or null.');
+        }
+
+        return $this->send($method, $path, $body, $options, self::ACCEPT_JSON);
+    }
+
+    /**
+     * @param array<string,mixed>|\stdClass|null $body
+     * @param array{stepUp?:bool, idempotencyKey?:string|null, query?:array<string,scalar>, retry?:bool} $options
      * @throws ApiException
      */
     private function send(string $method, string $path, $body, array $options, string $accept): HttpResponse
@@ -110,9 +150,14 @@ final class ApiClient
         }
         $url = $this->config->baseUrl() . $signedPath;
 
-        $rawBody = $body === null ? null : (string) json_encode(self::jsonOrdered($body), self::JSON_FLAGS);
+        $rawBody = $body === null ? null : self::encode($body);
 
-        $idempotent = in_array($method, ['GET', 'HEAD'], true) || (is_string($idempotencyKey) && $idempotencyKey !== '');
+        // `retry: false` turns the network / 5xx retries off for this call (the
+        // 401 re-auth stays): a caller that runs its own attempt loop, such as
+        // the physical POS payment writes, must see every attempt's outcome.
+        $retry = ($options['retry'] ?? true) !== false;
+        $idempotent = $retry
+            && (in_array($method, ['GET', 'HEAD'], true) || (is_string($idempotencyKey) && $idempotencyKey !== ''));
 
         $maxAttempts = $this->config->maxRetries() + 1;
         $reAuthed = false;
@@ -202,7 +247,27 @@ final class ApiClient
             : 'Gateway request failed (HTTP ' . $response->statusCode() . ').';
         $requestId = $response->header('x-request-id');
 
-        return new ApiException($message, $response->statusCode(), $code, $body, $requestId);
+        return new ApiException($message, $response->statusCode(), $code, $body, $requestId, null, $response->headers());
+    }
+
+    /**
+     * Encodes a request body. A body that cannot be encoded (invalid UTF-8,
+     * NAN / INF, too deep) is refused before sending; it never goes out as an
+     * empty body. The value is not repeated in the message.
+     *
+     * @param array<string,mixed>|\stdClass $body
+     * @throws ConfigurationException
+     */
+    private static function encode($body): string
+    {
+        $encoded = json_encode(self::jsonOrdered($body), self::JSON_FLAGS);
+        if (!is_string($encoded)) {
+            throw new ConfigurationException(
+                'The request body cannot be encoded as JSON (' . json_last_error_msg() . '); check the text fields for invalid UTF-8.'
+            );
+        }
+
+        return $encoded;
     }
 
     /**

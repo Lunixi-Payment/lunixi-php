@@ -36,7 +36,7 @@ use Lunixi\Sdk\Payment\InsuranceItemCategory;
 require_once __DIR__ . '/../_common/bootstrap.php';
 
 const INSURANCE_TYPE = 'TICKET_CANCELLATION';
-const TICKET_PRICE = 100000;
+const TICKET_PRICE = '100000';
 
 $lunixi = sample_client();
 $insurance = $lunixi->insurance();
@@ -120,7 +120,7 @@ try {
 }
 
 $premiumItem = InsuranceClient::premiumBasketItem($order, 'Ticket cancellation insurance', 'insurance');
-$request = (new CreateIntentRequest(TICKET_PRICE + $order->premiumAmount(), 'TRY', $orderRef))
+$request = (new CreateIntentRequest(\Lunixi\Sdk\Commerce\Money::add(TICKET_PRICE, $order->premiumAmount()), 'TRY', $orderRef))
     ->withCallbackUrl(sample_env('LUNIXI_CALLBACK_URL', 'https://merchant.example.com/payments/lunixi/callback'))
     ->withBuyer(sample_buyer())
     ->withBillingAddress(sample_billing_address())

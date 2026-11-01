@@ -17,6 +17,7 @@ final class Subscription
     /** @param array<string,mixed> $data The response `data` object. */
     public function __construct(array $data)
     {
+        \Lunixi\Sdk\Commerce\MoneyPayload::validate($data);
         $this->data = $data;
     }
 
@@ -57,9 +58,9 @@ final class Subscription
     }
 
     /** Price snapshot in minor units. */
-    public function priceAmount(): int
+    public function priceAmount(): string
     {
-        return (int) ($this->data['priceSnapshotAmount'] ?? 0);
+        return \Lunixi\Sdk\Commerce\Money::integer($this->data['priceSnapshotAmount'] ?? '0');
     }
 
     public function currency(): string

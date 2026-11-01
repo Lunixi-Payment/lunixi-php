@@ -97,7 +97,7 @@ final class BankTransferClientTest extends TestCase
     {
         return array_merge([
             'id' => self::TRANSFER_ID, 'connectionId' => self::CONNECTION_ID, 'accountId' => self::ACCOUNT_ID, 'environment' => 'test',
-            'status' => 'SUBMITTED', 'rail' => null, 'amountMinor' => 150075, 'currency' => 'TRY',
+            'status' => 'SUBMITTED', 'rail' => null, 'amountMinor' => '150075', 'currency' => 'TRY',
             'sourceIbanMasked' => 'TR00 **** **** **** **** **00 00', 'receiverIbanMasked' => 'TR00 **** **** **** **** **01 46',
             'receiverNameMasked' => 'Ö**** T*******', 'receiverBankCode' => '0062', 'paymentPurpose' => null, 'description' => 'Fatura 2026-0042',
             'idempotencyKey' => 'payout-2026-0042', 'failureCode' => null, 'outcomeUnknown' => false, 'initiatedVia' => 'API',
@@ -112,7 +112,7 @@ final class BankTransferClientTest extends TestCase
         return [
             'id' => self::QUOTE_ID, 'connectionId' => self::CONNECTION_ID, 'sourceAccountId' => self::ACCOUNT_ID,
             'targetAccountId' => self::USD_ACCOUNT_ID, 'sourceCurrency' => 'TRY', 'targetCurrency' => 'USD',
-            'sourceAmountMinor' => 3412500, 'targetAmountMinor' => 100000, 'requestedSide' => 'TARGET', 'appliedRate' => '34.1250',
+            'sourceAmountMinor' => '3412500', 'targetAmountMinor' => '100000', 'requestedSide' => 'TARGET', 'appliedRate' => '34.1250',
             'taxAmountMinor' => null, 'expiresAt' => '2026-01-01T07:01:20.000Z', 'validForSeconds' => 80,
             'insufficientBalance' => false, 'belowMinimum' => false, 'createdAt' => '2026-01-01T07:00:00.000Z',
         ];
@@ -123,7 +123,7 @@ final class BankTransferClientTest extends TestCase
         return [
             'id' => self::ORDER_ID, 'quoteId' => self::QUOTE_ID, 'connectionId' => self::CONNECTION_ID,
             'sourceAccountId' => self::ACCOUNT_ID, 'targetAccountId' => self::USD_ACCOUNT_ID, 'sourceCurrency' => 'TRY',
-            'targetCurrency' => 'USD', 'sourceAmountMinor' => 3412500, 'targetAmountMinor' => 100000, 'appliedRate' => '34.1250',
+            'targetCurrency' => 'USD', 'sourceAmountMinor' => '3412500', 'targetAmountMinor' => '100000', 'appliedRate' => '34.1250',
             'description' => null, 'idempotencyKey' => 'fx-2026-0042', 'status' => 'SUBMITTED', 'failureCode' => null,
             'outcomeUnknown' => false, 'initiatedVia' => 'API', 'sourceBalanceAfterMinor' => null, 'targetBalanceAfterMinor' => null,
             'createdAt' => '2026-01-01T07:00:30.000Z', 'submittedAt' => '2026-01-01T07:00:30.000Z', 'completedAt' => null,
@@ -135,7 +135,7 @@ final class BankTransferClientTest extends TestCase
     {
         return array_merge([
             'accountId' => self::ACCOUNT_ID, 'receiverIban' => 'TR050006200000000000000146', 'receiverName' => 'Örnek Tedarik A.Ş.',
-            'amountMinor' => 150075, 'description' => 'Fatura 2026-0042',
+            'amountMinor' => '150075', 'description' => 'Fatura 2026-0042',
         ], $overrides);
     }
 
@@ -161,7 +161,7 @@ final class BankTransferClientTest extends TestCase
             'transfers.get' => ['getTransfer', static fn () => $transfers->get(self::TRANSFER_ID)],
             'fx.listRates' => ['listFxRates', static fn () => $fx->listRates(self::CONNECTION_ID)],
             'fx.createQuote' => ['createFxQuote', static fn () => $fx->createQuote([
-                'sourceAccountId' => self::ACCOUNT_ID, 'targetAccountId' => self::USD_ACCOUNT_ID, 'targetAmountMinor' => 100000,
+                'sourceAccountId' => self::ACCOUNT_ID, 'targetAccountId' => self::USD_ACCOUNT_ID, 'targetAmountMinor' => '100000',
             ])],
             'fx.createOrder' => ['createFxOrder', static fn () => $fx->createOrder(['quoteId' => self::QUOTE_ID])],
             'fx.listOrders' => ['listFxOrders', static fn () => $fx->listOrders()],
@@ -216,7 +216,7 @@ final class BankTransferClientTest extends TestCase
         $first = $http->lastCall();
         $this->assertSame([
             'accountId' => self::ACCOUNT_ID, 'receiverIban' => 'TR050006200000000000000146', 'receiverName' => 'Örnek Tedarik A.Ş.',
-            'amountMinor' => 150075, 'description' => 'Fatura 2026-0042', 'currency' => 'TRY',
+            'amountMinor' => '150075', 'description' => 'Fatura 2026-0042', 'currency' => 'TRY',
         ], json_decode((string) $first['body'], true));
         $this->assertMatchesRegularExpression('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/', $first['headers']['Idempotency-Key']);
         $this->assertSame(BankTransferStatus::SUBMITTED, $created->transfer()->status());
@@ -234,21 +234,21 @@ final class BankTransferClientTest extends TestCase
         return [
             'unknown field' => [static fn (BankConnectClient $c) => $c->transfers()->create(self::transferRequest(['environment' => 'test'])), '/does not accept environment/'],
             'missing receiver' => [static fn (BankConnectClient $c) => $c->transfers()->create(self::transferRequest(['receiverName' => ''])), '/requires receiverName/'],
-            'decimal amount' => [static fn (BankConnectClient $c) => $c->transfers()->create(self::transferRequest(['amountMinor' => 1500.75])), '/positive integer/'],
-            'zero amount' => [static fn (BankConnectClient $c) => $c->transfers()->create(self::transferRequest(['amountMinor' => 0])), '/positive integer/'],
+            'decimal amount' => [static fn (BankConnectClient $c) => $c->transfers()->create(self::transferRequest(['amountMinor' => 1500.75])), '/canonical.*integer string/'],
+            'zero amount' => [static fn (BankConnectClient $c) => $c->transfers()->create(self::transferRequest(['amountMinor' => '0'])), '/positive integer/'],
             'short name' => [static fn (BankConnectClient $c) => $c->transfers()->create(self::transferRequest(['receiverName' => 'A'])), '/2-140/'],
             'long description' => [static fn (BankConnectClient $c) => $c->transfers()->create(self::transferRequest(['description' => str_repeat('a', 141)])), '/140/'],
             'bad purpose' => [static fn (BankConnectClient $c) => $c->transfers()->create(self::transferRequest(['paymentPurpose' => 'kira ödemesi'])), '/paymentPurpose/'],
             'short key' => [static fn (BankConnectClient $c) => $c->transfers()->create(self::transferRequest(), 'short'), '/idempotencyKey/'],
             'key with space' => [static fn (BankConnectClient $c) => $c->transfers()->create(self::transferRequest(), 'payout 2026 0042'), '/idempotencyKey/'],
             'both amounts' => [static fn (BankConnectClient $c) => $c->fx()->createQuote([
-                'sourceAccountId' => self::ACCOUNT_ID, 'targetAccountId' => self::USD_ACCOUNT_ID, 'sourceAmountMinor' => 1, 'targetAmountMinor' => 1,
+                'sourceAccountId' => self::ACCOUNT_ID, 'targetAccountId' => self::USD_ACCOUNT_ID, 'sourceAmountMinor' => '1', 'targetAmountMinor' => '1',
             ]), '/exactly one/'],
             'no amount' => [static fn (BankConnectClient $c) => $c->fx()->createQuote([
                 'sourceAccountId' => self::ACCOUNT_ID, 'targetAccountId' => self::USD_ACCOUNT_ID,
             ]), '/exactly one/'],
             'same account' => [static fn (BankConnectClient $c) => $c->fx()->createQuote([
-                'sourceAccountId' => self::ACCOUNT_ID, 'targetAccountId' => self::ACCOUNT_ID, 'sourceAmountMinor' => 1,
+                'sourceAccountId' => self::ACCOUNT_ID, 'targetAccountId' => self::ACCOUNT_ID, 'sourceAmountMinor' => '1',
             ]), '/two different accounts/'],
             'order without quote' => [static fn (BankConnectClient $c) => $c->fx()->createOrder([]), '/requires quoteId/'],
             'fx session on the API' => [static fn (BankConnectClient $c) => $c->fx()->createOrder(['quoteId' => self::QUOTE_ID, 'fxSessionId' => self::QUOTE_ID]), '/does not accept fxSessionId/'],
@@ -314,8 +314,8 @@ final class BankTransferClientTest extends TestCase
         $this->assertSame(BankTransferInitiatedVia::API, $transfer->initiatedVia());
         $this->assertFalse($transfer->outcomeUnknown());
 
-        $quote = $client->fx()->createQuote(['sourceAccountId' => self::ACCOUNT_ID, 'targetAccountId' => self::USD_ACCOUNT_ID, 'targetAmountMinor' => 100000]);
-        $this->assertSame(['sourceAccountId' => self::ACCOUNT_ID, 'targetAccountId' => self::USD_ACCOUNT_ID, 'targetAmountMinor' => 100000], json_decode((string) $http->lastCall()['body'], true));
+        $quote = $client->fx()->createQuote(['sourceAccountId' => self::ACCOUNT_ID, 'targetAccountId' => self::USD_ACCOUNT_ID, 'targetAmountMinor' => '100000']);
+        $this->assertSame(['sourceAccountId' => self::ACCOUNT_ID, 'targetAccountId' => self::USD_ACCOUNT_ID, 'targetAmountMinor' => '100000'], json_decode((string) $http->lastCall()['body'], true));
         $this->assertSame(BankFxRequestedSide::TARGET, $quote->requestedSide());
         $this->assertSame('34.1250', $quote->appliedRate(), 'rates stay decimal strings');
         $this->assertSame(80, $quote->validForSeconds());
@@ -430,7 +430,7 @@ final class BankTransferClientTest extends TestCase
         $secret = 'whsec_test_bank_transfer';
         $payload = [
             'transferId' => self::TRANSFER_ID, 'connectionId' => self::CONNECTION_ID, 'accountId' => self::ACCOUNT_ID,
-            'bankEftCode' => '0000', 'bankName' => 'ÖRNEK BANKA', 'status' => 'COMPLETED', 'rail' => 'FAST', 'amountMinor' => 150075,
+            'bankEftCode' => '0000', 'bankName' => 'ÖRNEK BANKA', 'status' => 'COMPLETED', 'rail' => 'FAST', 'amountMinor' => '150075',
             'currency' => 'TRY', 'receiverIbanMasked' => 'TR00 **** **** **** **** **01 46', 'receiverNameMasked' => 'Ö**** T*******',
             'paymentPurpose' => null, 'description' => null, 'failureCode' => null, 'idempotencyKey' => 'payout-2026-0042',
             'createdAt' => '2026-01-01T07:00:00.000Z', 'completedAt' => '2026-01-01T07:00:20.000Z', 'failedAt' => null, 'returnedAt' => null,
@@ -455,7 +455,7 @@ final class BankTransferClientTest extends TestCase
         $transfer = BankTransferEvent::fromEvent($event);
         $this->assertSame(BankTransferEvents::COMPLETED, $transfer->type());
         $this->assertSame('TEST', $transfer->environment());
-        $this->assertSame(150075, $transfer->amountMinor());
+        $this->assertSame('150075', $transfer->amountMinor());
         $this->assertSame('payout-2026-0042', $transfer->idempotencyKey());
         $this->assertNull($transfer->failureCode());
     }

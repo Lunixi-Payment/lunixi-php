@@ -173,7 +173,7 @@ final class WalletClientTest extends TestCase
 
             'WalletDeposits::listInstructions' => static fn () => $w->deposits->listInstructions(self::END_USER),
             'WalletDeposits::createInstruction' => static fn () => $w->deposits->createInstruction(self::END_USER, ['walletAccountId' => self::ACCOUNT]),
-            'WalletDeposits::simulateInboundCredit' => static fn () => $w->deposits->simulateInboundCredit(['programId' => self::PROGRAM, 'railId' => 'rail-1', 'amount' => 100000, 'currency' => 'TRY', 'rawReference' => 'W5001234567']),
+            'WalletDeposits::simulateInboundCredit' => static fn () => $w->deposits->simulateInboundCredit(['programId' => self::PROGRAM, 'railId' => 'rail-1', 'amount' => '100000', 'currency' => 'TRY', 'rawReference' => 'W5001234567']),
 
             'WalletCorporate::create' => static fn () => $w->corporate->create(['programId' => self::PROGRAM, 'code' => 'ACME', 'name' => 'Acme A.S.', 'ownerEndUserId' => self::END_USER], 'corp-acme'),
             'WalletCorporate::list' => static fn () => $w->corporate->list(['programId' => self::PROGRAM]),
@@ -219,7 +219,7 @@ final class WalletClientTest extends TestCase
             'WalletQr::revoke' => static fn () => $w->qr->revoke(self::QR),
             'WalletQr::parse' => static fn () => $w->qr->parse('000201010212...'),
 
-            'WalletBulkPayouts::create' => static fn () => $w->bulkPayouts->create(['programId' => self::PROGRAM, 'sourceWalletAccountId' => self::ACCOUNT, 'currency' => 'TRY', 'items' => [['targetType' => WalletBulkTargetType::WALLET, 'targetRef' => '5001234567', 'amount' => 5000], ['targetType' => WalletBulkTargetType::IBAN, 'targetRef' => 'TR330006100519786457841326', 'amount' => '7500', 'beneficiaryName' => 'Ada Yilmaz']]], 'bulk-2026-10'),
+            'WalletBulkPayouts::create' => static fn () => $w->bulkPayouts->create(['programId' => self::PROGRAM, 'sourceWalletAccountId' => self::ACCOUNT, 'currency' => 'TRY', 'items' => [['targetType' => WalletBulkTargetType::WALLET, 'targetRef' => '5001234567', 'amount' => '5000'], ['targetType' => WalletBulkTargetType::IBAN, 'targetRef' => 'TR330006100519786457841326', 'amount' => '7500', 'beneficiaryName' => 'Ada Yilmaz']]], 'bulk-2026-10'),
             'WalletBulkPayouts::list' => static fn () => $w->bulkPayouts->list(['status' => 'DRAFT', 'limit' => 10]),
             'WalletBulkPayouts::get' => static fn () => $w->bulkPayouts->get(self::BATCH),
             'WalletBulkPayouts::listItems' => static fn () => $w->bulkPayouts->listItems(self::BATCH, ['status' => 'FAILED']),
@@ -390,10 +390,11 @@ final class WalletClientTest extends TestCase
             'empty required field' => [static fn (WalletClient $w) => $w->transfers->quoteW2W(self::w2wQuote(['endUserId' => '']))],
             'missing buyerEndUserId' => [static fn (WalletClient $w) => $w->payments->approve(self::OPERATION, ['integrityHash' => 'ih', 'nonce' => 'n'], 'pay-1-approve')],
             'float amount' => [static fn (WalletClient $w) => $w->transfers->quoteW2W(self::w2wQuote(['amount' => 125.5]))],
+            'numeric integer amount' => [static fn (WalletClient $w) => $w->transfers->quoteW2W(self::w2wQuote(['amount' => 100]))],
             'whole float amount' => [static fn (WalletClient $w) => $w->transfers->quoteW2W(self::w2wQuote(['amount' => 100.0]))],
             'decimal string amount' => [static fn (WalletClient $w) => $w->transfers->quoteW2W(self::w2wQuote(['amount' => '125.50']))],
-            'negative amount' => [static fn (WalletClient $w) => $w->transfers->quoteW2W(self::w2wQuote(['amount' => -1]))],
-            '19-digit amount' => [static fn (WalletClient $w) => $w->transfers->quoteW2W(self::w2wQuote(['amount' => '1234567890123456789']))],
+            'negative amount' => [static fn (WalletClient $w) => $w->transfers->quoteW2W(self::w2wQuote(['amount' => '-1']))],
+            'leading-zero amount' => [static fn (WalletClient $w) => $w->transfers->quoteW2W(self::w2wQuote(['amount' => '01234567890123456789']))],
             'boolean amount' => [static fn (WalletClient $w) => $w->transfers->quoteW2W(self::w2wQuote(['amount' => true]))],
             'float amount in a bulk item' => [static fn (WalletClient $w) => $w->bulkPayouts->create(['programId' => self::PROGRAM, 'sourceWalletAccountId' => self::ACCOUNT, 'currency' => 'TRY', 'items' => [['targetType' => 'WALLET', 'targetRef' => '1', 'amount' => 10.5]]], 'bulk-1')],
             'unknown bulk item field' => [static fn (WalletClient $w) => $w->bulkPayouts->create(['programId' => self::PROGRAM, 'sourceWalletAccountId' => self::ACCOUNT, 'currency' => 'TRY', 'items' => [['targetType' => 'WALLET', 'targetRef' => '1', 'amount' => '10', 'note' => 'x']]], 'bulk-1')],
@@ -454,14 +455,14 @@ final class WalletClientTest extends TestCase
         }
     }
 
-    public function testIntegerAmountsAreSentAsMinorUnitStrings(): void
+    public function testCanonicalAmountsAreSentAsMinorUnitStrings(): void
     {
         [$wallet, $http] = $this->make();
         $http->pushJson(200, self::envelope(['operationId' => self::OPERATION]));
         $http->pushJson(201, self::envelope(['batchId' => self::BATCH]));
 
-        $wallet->transfers->quoteW2W(self::w2wQuote(['amount' => 12550]));
-        $wallet->bulkPayouts->create(['programId' => self::PROGRAM, 'sourceWalletAccountId' => self::ACCOUNT, 'currency' => 'TRY', 'items' => [['targetType' => 'WALLET', 'targetRef' => '5001234567', 'amount' => 0]]], 'bulk-zero');
+        $wallet->transfers->quoteW2W(self::w2wQuote(['amount' => '12550']));
+        $wallet->bulkPayouts->create(['programId' => self::PROGRAM, 'sourceWalletAccountId' => self::ACCOUNT, 'currency' => 'TRY', 'items' => [['targetType' => 'WALLET', 'targetRef' => '5001234567', 'amount' => '0']]], 'bulk-zero');
 
         $this->assertSame('12550', self::bodyOf($http->calls[0])['amount']);
         $this->assertStringContainsString('"amount":"12550"', (string) $http->calls[0]['body']);

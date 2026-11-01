@@ -62,7 +62,7 @@ final class BankTransferClient
      * Creates an outgoing transfer (HTTP 201).
      *
      * @param array<string,mixed> $request accountId (source account), receiverIban (TR IBAN),
-     *   receiverName (2–140 characters), amountMinor (integer > 0, minor units: 150075 = 1,500.75 TRY),
+     *   receiverName (2–140 characters), amountMinor (canonical integer string > 0, minor units: 150075 = 1,500.75 TRY),
      *   optional currency (TRY), paymentPurpose (a code from listPurposes()), description (≤ 140).
      * @param string|null $idempotencyKey 8–200 printable ASCII; generated when null. The SDK retries a
      *   network error or a 5xx with the same key. Pass your own (e.g. your payout id) to retry safely

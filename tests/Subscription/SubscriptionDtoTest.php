@@ -46,17 +46,17 @@ final class SubscriptionDtoTest extends TestCase
     public function testCreatePlanRejectsUnsupportedCurrency(): void
     {
         $this->expectException(ConfigurationException::class);
-        new CreatePlanRequest('prod_1', 'pro', 'Pro', 9900, 'XXX', new BillingRule('MONTHLY', 1));
+        new CreatePlanRequest('prod_1', 'pro', 'Pro', '9900', 'XXX', new BillingRule('MONTHLY', 1));
     }
 
     public function testCreatePlanToArrayCarriesBillingRule(): void
     {
-        $req = (new CreatePlanRequest('prod_1', 'pro-monthly', 'Pro', 9900, 'try', new BillingRule('MONTHLY', 1)))
+        $req = (new CreatePlanRequest('prod_1', 'pro-monthly', 'Pro', '9900', 'try', new BillingRule('MONTHLY', 1)))
             ->withTrialPeriodDays(14)
             ->withDunningScheduleDays([1, 3, 7]);
         $arr = $req->toArray();
         $this->assertSame('prod_1', $arr['productId']);
-        $this->assertSame(9900, $arr['price']);
+        $this->assertSame('9900', $arr['price']);
         $this->assertSame('TRY', $arr['currency']);
         $this->assertSame('MONTHLY', $arr['billing']['frequency']);
         $this->assertSame(14, $arr['trialPeriodDays']);

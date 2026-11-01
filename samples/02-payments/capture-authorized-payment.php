@@ -7,5 +7,5 @@ require_once __DIR__ . '/../_common/bootstrap.php';
 $paymentId = sample_required_env('LUNIXI_PAYMENT_ID');
 
 sample_print(
-    sample_client()->payments()->capture($paymentId, null, sample_idempotency_key('capture'))
+    sample_client()->payments()->captureRemaining($paymentId, sample_idempotency_key('capture'))
 );

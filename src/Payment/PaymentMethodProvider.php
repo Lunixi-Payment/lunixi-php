@@ -21,6 +21,7 @@ final class PaymentMethodProvider
     /** @param array<string,mixed> $data */
     public function __construct(array $data)
     {
+        \Lunixi\Sdk\Commerce\MoneyPayload::validate($data);
         $this->data = $data;
         $this->inputFields = array_map(
             static fn ($field): MethodInputField => new MethodInputField(is_array($field) ? $field : []),
@@ -58,15 +59,15 @@ final class PaymentMethodProvider
     }
 
     /** Minor units; null = no limit. */
-    public function minAmount(): ?int
+    public function minAmount(): ?string
     {
-        return isset($this->data['minAmount']) ? (int) $this->data['minAmount'] : null;
+        return isset($this->data['minAmount']) ? \Lunixi\Sdk\Commerce\Money::integer($this->data['minAmount']) : null;
     }
 
     /** Minor units; null = no limit. */
-    public function maxAmount(): ?int
+    public function maxAmount(): ?string
     {
-        return isset($this->data['maxAmount']) ? (int) $this->data['maxAmount'] : null;
+        return isset($this->data['maxAmount']) ? \Lunixi\Sdk\Commerce\Money::integer($this->data['maxAmount']) : null;
     }
 
     /** Whether `preauth: true` is accepted with this provider. */

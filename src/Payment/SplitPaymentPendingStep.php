@@ -30,6 +30,7 @@ final class SplitPaymentPendingStep
     /** @param array<string,mixed> $data */
     public function __construct(array $data)
     {
+        \Lunixi\Sdk\Commerce\MoneyPayload::validate($data);
         $this->data = $data;
     }
 
@@ -60,9 +61,9 @@ final class SplitPaymentPendingStep
     }
 
     /** Minor units. */
-    public function amount(): ?int
+    public function amount(): ?string
     {
-        return isset($this->data['amount']) ? (int) $this->data['amount'] : null;
+        return isset($this->data['amount']) ? \Lunixi\Sdk\Commerce\Money::integer($this->data['amount']) : null;
     }
 
     /** Non-card leg's payment record (the `paymentId` of the action endpoints); null for a card. */

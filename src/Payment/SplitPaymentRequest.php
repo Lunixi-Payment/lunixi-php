@@ -52,14 +52,12 @@ final class SplitPaymentRequest
     private array $legs = [];
 
     /**
-     * @param int    $totalAmount Minor units; the sum of the leg amounts.
+     * @param mixed $totalAmount Minor units; the sum of the leg amounts.
      * @param string $ownerRef    Your customer's card owner key (cardUserKey); required also without a card leg.
      */
-    public function __construct(int $totalAmount, string $currency, string $ownerRef)
+    public function __construct($totalAmount, string $currency, string $ownerRef)
     {
-        if ($totalAmount < 1) {
-            throw new ConfigurationException("SplitPaymentRequest 'totalAmount' must be a positive integer (minor units).");
-        }
+        \Lunixi\Sdk\Commerce\Money::positive($totalAmount);
         $currency = strtoupper($currency);
         if (!Currency::isSupported($currency)) {
             throw new ConfigurationException("Unsupported currency '{$currency}'.");
@@ -96,10 +94,13 @@ final class SplitPaymentRequest
         return $this;
     }
 
-    /** A stored card leg (`cardToken` of a card saved for `ownerRef`). */
+    /**
+     * A stored card leg (`cardToken` of a card saved for `ownerRef`).
+     * @param mixed $amount Canonical money string; other types are rejected before coercion.
+     */
     public function addCardLeg(
         string $cardToken,
-        int $amount,
+        $amount,
         bool $force3D = false,
         ?int $installment = null,
         ?string $installmentQuoteToken = null
@@ -146,8 +147,9 @@ final class SplitPaymentRequest
      * DirectMethodPaymentRequest::withMethodFields().
      *
      * @param array<string,mixed> $fields
+     * @param mixed $amount Canonical money string; other types are rejected before coercion.
      */
-    public function addMethodLeg(string $paymentMethod, string $providerCode, int $amount, array $fields = []): self
+    public function addMethodLeg(string $paymentMethod, string $providerCode, $amount, array $fields = []): self
     {
         $path = sprintf('legs[%d]', count($this->legs));
         $code = PaymentMethod::normalize($paymentMethod);
@@ -196,15 +198,15 @@ final class SplitPaymentRequest
         if ($count < self::MIN_LEGS || $count > self::MAX_LEGS) {
             throw new ConfigurationException(sprintf('A split payment has %d to %d legs; %d given.', self::MIN_LEGS, self::MAX_LEGS, $count));
         }
-        $sum = 0;
+        $sum = '0';
         $force3D = false;
         foreach ($this->legs as $leg) {
-            $sum += (int) $leg['amount'];
+            $sum = \Lunixi\Sdk\Commerce\Money::add($sum, $leg['amount']);
             $force3D = $force3D || (($leg['force3D'] ?? false) === true);
         }
         if ($sum !== $this->data['totalAmount']) {
             throw new ConfigurationException(sprintf(
-                'The legs add up to %d but totalAmount is %d; they must be equal.',
+                'The legs add up to %s but totalAmount is %s; they must be equal.',
                 $sum,
                 $this->data['totalAmount']
             ));
@@ -216,11 +218,12 @@ final class SplitPaymentRequest
         return $this->data + ['legs' => $this->legs];
     }
 
-    private static function requireAmount(int $amount, string $path): int
+    /**
+     * @param mixed $amount Canonical money string; other types are rejected before coercion.
+     */
+    private static function requireAmount($amount, string $path): string
     {
-        if ($amount < 1) {
-            throw new ConfigurationException(sprintf('%s.amount must be a positive integer (minor units).', $path));
-        }
+        \Lunixi\Sdk\Commerce\Money::positive($amount);
 
         return $amount;
     }

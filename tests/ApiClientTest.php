@@ -57,7 +57,7 @@ final class ApiClientTest extends TestCase
         [$api, $http] = $this->make();
         $http->pushJson(200, ['intentId' => 'pi_9', 'token' => 'tok_9']);
 
-        $result = $api->request('POST', '/api/v1/payments/intents', ['amount' => 1000, 'currency' => 'TRY'], [
+        $result = $api->request('POST', '/api/v1/payments/intents', ['amount' => '1000', 'currency' => 'TRY'], [
             'stepUp' => true,
             'idempotencyKey' => 'idem-123',
         ]);
@@ -73,7 +73,7 @@ final class ApiClientTest extends TestCase
         $this->assertArrayHasKey('X-Nonce', $h);
         $this->assertArrayHasKey('Digest', $h);
         $this->assertStringStartsWith('SHA-256=', $h['Digest']);
-        $this->assertSame('{"amount":1000,"currency":"TRY"}', $http->lastCall()['body']);
+        $this->assertSame('{"amount":"1000","currency":"TRY"}', $http->lastCall()['body']);
     }
 
     /**
@@ -128,7 +128,7 @@ final class ApiClientTest extends TestCase
         $http->pushJson(400, ['code' => 'payment.intent.invalid_state', 'message' => 'bad state']);
 
         try {
-            $api->request('POST', '/api/v1/payments/pi_1/capture', ['amount' => 100], ['stepUp' => true, 'idempotencyKey' => 'k']);
+            $api->request('POST', '/api/v1/payments/pi_1/capture', ['amount' => '100'], ['stepUp' => true, 'idempotencyKey' => 'k']);
             $this->fail('expected ApiException');
         } catch (ApiException $e) {
             $this->assertSame(400, $e->getStatusCode());
@@ -157,7 +157,7 @@ final class ApiClientTest extends TestCase
         [$api, $http] = $this->make();
         $http->pushJson(503, ['code' => 'unavailable'])->pushJson(200, ['ok' => true]);
 
-        $result = $api->request('POST', '/api/v1/payments/pi/refund', ['amount' => 50], ['stepUp' => true, 'idempotencyKey' => 'r1']);
+        $result = $api->request('POST', '/api/v1/payments/pi/refund', ['amount' => '50'], ['stepUp' => true, 'idempotencyKey' => 'r1']);
 
         $this->assertTrue($result['ok']);
         $this->assertSame(2, $http->callCount());
@@ -170,7 +170,7 @@ final class ApiClientTest extends TestCase
 
         $this->expectException(ApiException::class);
         try {
-            $api->request('POST', '/api/v1/payments/intents', ['amount' => 1], ['stepUp' => true]);
+            $api->request('POST', '/api/v1/payments/intents', ['amount' => '1'], ['stepUp' => true]);
         } finally {
             $this->assertSame(1, $http->callCount(), 'non-idempotent POST must not be retried');
         }
@@ -194,7 +194,7 @@ final class ApiClientTest extends TestCase
 
         $this->expectException(ApiException::class);
         try {
-            $api->request('POST', '/api/v1/payments/intents', ['amount' => 1], ['stepUp' => true]);
+            $api->request('POST', '/api/v1/payments/intents', ['amount' => '1'], ['stepUp' => true]);
         } finally {
             $this->assertSame(1, $http->callCount());
         }

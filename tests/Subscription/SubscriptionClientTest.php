@@ -44,7 +44,7 @@ final class SubscriptionClientTest extends TestCase
         [$subs, $http] = $this->make();
         $http->pushJson(201, ['success' => true, 'code' => 'SUBSCRIPTION_ACTIVE', 'data' => [
             'id' => 'sub_1', 'status' => 'ACTIVE', 'customerId' => 'cus_1', 'planId' => 'plan_1',
-            'priceSnapshotAmount' => 9900, 'priceSnapshotCurrency' => 'TRY', 'nextBillingAt' => '2026-07-16T10:00:00Z',
+            'priceSnapshotAmount' => '9900', 'priceSnapshotCurrency' => 'TRY', 'nextBillingAt' => '2026-07-16T10:00:00Z',
         ]]);
 
         $req = (new CreateSubscriptionRequest('cus_1', 'plan_1', 'idem-sub-1'))
@@ -55,7 +55,7 @@ final class SubscriptionClientTest extends TestCase
         $this->assertSame('sub_1', $sub->id());
         $this->assertSame(SubscriptionStatus::ACTIVE, $sub->status());
         $this->assertTrue($sub->isActive());
-        $this->assertSame(9900, $sub->priceAmount()); // minor units
+        $this->assertSame('9900', $sub->priceAmount()); // minor units
         $this->assertSame('2026-07-16T10:00:00Z', $sub->nextBillingAt());
 
         $call = $http->lastCall();
@@ -126,7 +126,7 @@ final class SubscriptionClientTest extends TestCase
         [$subs, $http] = $this->make();
         $http->pushJson(200, [
             'success' => true,
-            'data' => [['id' => 'plan_1', 'name' => 'Pro', 'price' => 9900, 'currency' => 'TRY']],
+            'data' => [['id' => 'plan_1', 'name' => 'Pro', 'price' => '9900', 'currency' => 'TRY']],
             'nextPageToken' => 'tok_next', 'pageSize' => 20,
         ]);
 
@@ -134,7 +134,7 @@ final class SubscriptionClientTest extends TestCase
 
         $this->assertCount(1, $list->items());
         $this->assertSame('Pro', $list->items()[0]->name());
-        $this->assertSame(9900, $list->items()[0]->price());
+        $this->assertSame('9900', $list->items()[0]->price());
         $this->assertTrue($list->hasMore());
         $this->assertSame('tok_next', $list->nextPageToken());
 
@@ -218,10 +218,10 @@ final class SubscriptionClientTest extends TestCase
         $this->assertSame('cus_1', $cus->id());
         $this->assertStringEndsWith('/api/v1/subscriptions/customers/by-external/wp-42', $http->lastCall()['url']);
 
-        $http->pushJson(200, ['success' => true, 'data' => [['id' => 'inv_1', 'status' => 'PAID', 'totalAmount' => 9900, 'currency' => 'TRY']]]);
+        $http->pushJson(200, ['success' => true, 'data' => [['id' => 'inv_1', 'status' => 'PAID', 'totalAmount' => '9900', 'currency' => 'TRY']]]);
         $list = $subs->invoices()->list(['subscriptionId' => 'sub_1', 'status' => 'PAID']);
         $this->assertTrue($list->items()[0]->isPaid());
-        $this->assertSame(9900, $list->items()[0]->totalAmount());
+        $this->assertSame('9900', $list->items()[0]->totalAmount());
         $this->assertStringContainsString('subscriptionId=sub_1', $http->lastCall()['url']);
     }
 
@@ -243,8 +243,8 @@ final class SubscriptionClientTest extends TestCase
     {
         [$subs, $http] = $this->make();
 
-        $http->pushJson(200, ['success' => true, 'data' => ['id' => 'plan_1', 'amount' => 1500]]);
-        $plan = $subs->plans()->update('plan_1', ['amount' => 1500]);
+        $http->pushJson(200, ['success' => true, 'data' => ['id' => 'plan_1', 'amount' => '1500']]);
+        $plan = $subs->plans()->update('plan_1', ['amount' => '1500']);
         $this->assertSame('plan_1', $plan->id());
         $this->assertSame('PATCH', $http->lastCall()['method']);
         $this->assertStringEndsWith('/api/v1/subscriptions/plans/plan_1', $http->lastCall()['url']);

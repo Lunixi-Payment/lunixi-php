@@ -40,7 +40,7 @@ final class CheckoutTest extends CIUnitTestCase
         self::assertSame('https://pay.lunixi.com/payment/backend-page-pi-1', $result->response()->getHeaderLine('Location'));
         $record=$this->nativeDb->query('SELECT payload FROM lunixi_attempts')->getRowArray()['payload'];
         self::assertStringNotContainsString('fixture-browser-token',$record);
-        self::assertSame(1990,$this->http->payments['pi-1']['data']['amount']);
+        self::assertSame('1990',$this->http->payments['pi-1']['data']['amount']);
     }
     public function testUnauthenticatedAndWrongOwnerNeverRequestPayment(): void
     {
@@ -61,7 +61,7 @@ final class CheckoutTest extends CIUnitTestCase
     }
     public function testSignedRawWebhookAndAuthenticatedGetPayOnceOnNativeRoute(): void
     {
-        $this->checkout->start(1,1);$this->http->settle('CAPTURED',1990);[$body,$headers]=$this->signed();
+        $this->checkout->start(1,1);$this->http->settle('CAPTURED','1990');[$body,$headers]=$this->signed();
         $this->withHeaders($headers)->withBody($body)->post('/webhooks/lunixi')->assertStatus(200);
         $this->withHeaders($headers)->withBody($body)->post('/webhooks/lunixi')->assertStatus(200);
         self::assertSame('paid',$this->checkout->order(1)['state']);
@@ -70,7 +70,7 @@ final class CheckoutTest extends CIUnitTestCase
     }
     public function testNativeDatabaseFailureRollsBackInboxOrderAndOutbox(): void
     {
-        $this->checkout->start(1,1);$this->http->settle('CAPTURED',1990);[$body,$headers]=$this->signed();
+        $this->checkout->start(1,1);$this->http->settle('CAPTURED','1990');[$body,$headers]=$this->signed();
         $this->nativeDb->query("CREATE TRIGGER fail_native BEFORE UPDATE ON orders BEGIN SELECT RAISE(ABORT,'synthetic native failure'); END");
         try {$this->checkout->webhook($body,$headers);self::fail('Expected native rollback.');}catch(Throwable $expected){}
         self::assertSame('pending',$this->checkout->order(1)['state']);
@@ -90,12 +90,12 @@ final class CheckoutTest extends CIUnitTestCase
     public function testLostResponseRecoveryRequiresSignedOpaqueAttempt(): void
     {
         $this->http->loseCreate=true;try{$this->checkout->start(1,1);}catch(RuntimeException $e){}
-        $this->http->settle('CAPTURED',1990);[$body,$headers]=$this->signed();$this->checkout->webhook($body,$headers);
+        $this->http->settle('CAPTURED','1990');[$body,$headers]=$this->signed();$this->checkout->webhook($body,$headers);
         self::assertSame('paid',$this->checkout->order(1)['state']);self::assertCount(1,$this->http->createKeys);
     }
     public function testTamperedAndWrongEnvironmentWebhookNeverConsumesEvent(): void
     {
-        $this->checkout->start(1,1);$this->http->settle('CAPTURED',1990);[$body,$headers]=$this->signed();
+        $this->checkout->start(1,1);$this->http->settle('CAPTURED','1990');[$body,$headers]=$this->signed();
         try{$this->checkout->webhook($body.' ',$headers);self::fail('Tampered bytes accepted.');}catch(Throwable $expected){}
         $body=str_replace('TEST','LIVE',$body);$ts=$headers['x-lunixi-signature-timestamp'];$headers['x-lunixi-signature']='v2='.hash_hmac('sha256','evt-native.'.$ts.'.'.$body,'fixture-webhook-secret');
         try{$this->checkout->webhook($body,$headers);self::fail('Wrong scope accepted.');}catch(Throwable $expected){}
@@ -103,7 +103,7 @@ final class CheckoutTest extends CIUnitTestCase
     }
     public function testChangedNativeOrderRollsBackVerifiedWebhook(): void
     {
-        $this->checkout->start(1,1);$this->http->settle('CAPTURED',1990);$this->nativeDb->query('UPDATE orders SET amount=2990 WHERE id=1');[$body,$headers]=$this->signed();
+        $this->checkout->start(1,1);$this->http->settle('CAPTURED','1990');$this->nativeDb->query('UPDATE orders SET amount=2990 WHERE id=1');[$body,$headers]=$this->signed();
         try{$this->checkout->webhook($body,$headers);self::fail('Changed native total accepted.');}catch(RuntimeException $expected){}
         self::assertSame(0,$this->nativeDb->table('lunixi_events')->countAllResults());self::assertSame('pending',$this->checkout->order(1)['state']);
     }
@@ -115,10 +115,10 @@ final class CheckoutTest extends CIUnitTestCase
     }
     public function testPartialCaptureStaysHeldAndInstallmentFeeIsSeparateBalance(): void
     {
-        $this->checkout->start(1,1);$this->http->settle('PARTIALLY_CAPTURED',1000);$this->checkout->reconcile(1);
+        $this->checkout->start(1,1);$this->http->settle('PARTIALLY_CAPTURED','1000');$this->checkout->reconcile(1);
         self::assertSame('partially_captured',$this->checkout->order(1)['state']);self::assertSame(0,$this->nativeDb->table('payment_outbox')->countAllResults());
-        $this->http->payments['pi-1']['data']['amount']=2100;$this->http->settle('CAPTURED',2100);$this->checkout->reconcile(1);
-        $order=$this->checkout->order(1);self::assertSame(1990,(int)$order['amount']);self::assertSame(2100,(int)$order['charged']);
+        $this->http->payments['pi-1']['data']['amount']='2100';$this->http->settle('CAPTURED','2100');$this->checkout->reconcile(1);
+        $order=$this->checkout->order(1);self::assertSame('1990',(string)$order['amount']);self::assertSame('2100',(string)$order['charged']);
     }
     public function testNativeLoginVerifiesHashAndRegeneratesSession(): void
     {
@@ -142,11 +142,11 @@ final class CheckoutTest extends CIUnitTestCase
         $this->nativeDb->query('UPDATE lunixi_attempts SET payload=?',[json_encode($record,JSON_THROW_ON_ERROR)]);
         try{$this->checkout->start(1,1);self::fail('Expired uncertain create was replayed.');}catch(RuntimeException $expected){}
         self::assertCount(1,array_filter($this->http->calls,fn($c)=>str_ends_with($c['url'],'/payments/intents')));
-        $this->http->settle('CAPTURED',1990);[$body,$headers]=$this->signed();$this->checkout->webhook($body,$headers);self::assertSame('paid',$this->checkout->order(1)['state']);
+        $this->http->settle('CAPTURED','1990');[$body,$headers]=$this->signed();$this->checkout->webhook($body,$headers);self::assertSame('paid',$this->checkout->order(1)['state']);
     }
     public function testFailedOutcomeRemainsReviewWithoutNewIntent(): void
     {
-        $this->checkout->start(1,1);$this->http->settle('FAILED',0);$this->checkout->reconcile(1);self::assertSame('review',$this->checkout->order(1)['state']);
+        $this->checkout->start(1,1);$this->http->settle('FAILED','0');$this->checkout->reconcile(1);self::assertSame('review',$this->checkout->order(1)['state']);
         try{$this->checkout->start(1,1);self::fail('Unknown failed outcome restarted.');}catch(DomainException $expected){}
         self::assertCount(1,$this->http->createKeys);
     }

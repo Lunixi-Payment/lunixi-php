@@ -18,7 +18,7 @@ require_once __DIR__ . '/../_common/bootstrap.php';
 //      (type "resend" instead of a code to get a new one).
 // The final result is also delivered by webhook (payment.captured / payment.failed).
 $payments = sample_client()->payments();
-$amount = 5000;
+$amount = '5000';
 
 $method = $payments->listPaymentMethods()->find(PaymentMethod::MOBILE_BILLING);
 if ($method === null) {

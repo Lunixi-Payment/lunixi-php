@@ -58,11 +58,11 @@ final class SplitPaymentTest extends TestCase
 
     private function cardAndMobileBilling(): SplitPaymentRequest
     {
-        return (new SplitPaymentRequest(100000, 'try', 'cuk_abc123'))
+        return (new SplitPaymentRequest('100000', 'try', 'cuk_abc123'))
             ->withOrderId('order-2026-001')
             ->withCallbackUrl('https://merchant.example/split-return')
-            ->addCardLeg('ct_vault_1', 60000, true)
-            ->addMethodLeg(PaymentMethod::MOBILE_BILLING, 'PAYCELL_MOBILE_BILLING', 40000, ['gsmNumber' => '+905321234567']);
+            ->addCardLeg('ct_vault_1', '60000', true)
+            ->addMethodLeg(PaymentMethod::MOBILE_BILLING, 'PAYCELL_MOBILE_BILLING', '40000', ['gsmNumber' => '+905321234567']);
     }
 
     /** @return array<string,mixed> */
@@ -92,16 +92,16 @@ final class SplitPaymentTest extends TestCase
     public function testRequestBuildsACardLegAndAMethodLegWithTheDirectPaymentBlock(): void
     {
         $this->assertSame([
-            'totalAmount' => 100000,
+            'totalAmount' => '100000',
             'currency' => 'TRY',
             'ownerRef' => 'cuk_abc123',
             'orderId' => 'order-2026-001',
             'callbackUrl' => 'https://merchant.example/split-return',
             'legs' => [
-                ['cardToken' => 'ct_vault_1', 'amount' => 60000, 'force3D' => true],
+                ['cardToken' => 'ct_vault_1', 'amount' => '60000', 'force3D' => true],
                 [
                     'paymentMethod' => 'MOBILE_BILLING',
-                    'amount' => 40000,
+                    'amount' => '40000',
                     'mobileBilling' => ['providerCode' => 'PAYCELL_MOBILE_BILLING', 'gsmNumber' => '+905321234567'],
                 ],
             ],
@@ -110,10 +110,10 @@ final class SplitPaymentTest extends TestCase
 
     public function testEveryKeyTheBuilderEmitsIsAGatewayDtoField(): void
     {
-        $body = (new SplitPaymentRequest(30000, 'TRY', 'cuk_1'))
-            ->addCardLeg('ct_1', 10000, false, 3, 'iq_1')
-            ->addMethodLeg(PaymentMethod::WALLET, 'PAYCELL_WALLET', 10000, ['gsmNumber' => '+905321234567'])
-            ->addMethodLeg(PaymentMethod::PROMISSORY_NOTE, 'EXAMPLE_PROVIDER', 10000, ['noteCount' => 3, 'debtorType' => 'INDIVIDUAL'])
+        $body = (new SplitPaymentRequest('30000', 'TRY', 'cuk_1'))
+            ->addCardLeg('ct_1', '10000', false, 3, 'iq_1')
+            ->addMethodLeg(PaymentMethod::WALLET, 'PAYCELL_WALLET', '10000', ['gsmNumber' => '+905321234567'])
+            ->addMethodLeg(PaymentMethod::PROMISSORY_NOTE, 'EXAMPLE_PROVIDER', '10000', ['noteCount' => 3, 'debtorType' => 'INDIVIDUAL'])
             ->toArray();
 
         $this->assertSame([], array_values(array_diff(array_keys($body), SplitPaymentRequest::FIELDS)));
@@ -121,7 +121,7 @@ final class SplitPaymentTest extends TestCase
             $this->assertSame([], array_values(array_diff(array_keys($leg), SplitPaymentRequest::LEG_FIELDS)));
         }
         $this->assertSame('3', $body['legs'][2]['promissoryNote']['noteCount']);
-        $this->assertSame(['cardToken' => 'ct_1', 'amount' => 10000, 'installment' => 3, 'installmentQuoteToken' => 'iq_1'], $body['legs'][0]);
+        $this->assertSame(['cardToken' => 'ct_1', 'amount' => '10000', 'installment' => 3, 'installmentQuoteToken' => 'iq_1'], $body['legs'][0]);
         foreach (PaymentMethod::METHOD_BLOCK_FIELDS as $block) {
             $this->assertContains($block, SplitPaymentRequest::LEG_FIELDS);
         }
@@ -131,27 +131,27 @@ final class SplitPaymentTest extends TestCase
     {
         $this->expectException(ConfigurationException::class);
         $this->expectExceptionMessage('add up to 90000 but totalAmount is 100000');
-        (new SplitPaymentRequest(100000, 'TRY', 'cuk_1'))->addCardLeg('ct_1', 60000)->addCardLeg('ct_2', 30000)->toArray();
+        (new SplitPaymentRequest('100000', 'TRY', 'cuk_1'))->addCardLeg('ct_1', '60000')->addCardLeg('ct_2', '30000')->toArray();
     }
 
     public function testLegRulesAreCheckedBeforeSending(): void
     {
-        $base = static fn (): SplitPaymentRequest => new SplitPaymentRequest(20000, 'TRY', 'cuk_1');
+        $base = static fn (): SplitPaymentRequest => new SplitPaymentRequest('20000', 'TRY', 'cuk_1');
         $refused = [
-            'card through addMethodLeg' => static fn () => $base()->addMethodLeg(PaymentMethod::CARD, 'X', 10000),
-            'no block for the method' => static fn () => $base()->addMethodLeg(PaymentMethod::BNPL, 'X', 10000),
-            'providerCode in the fields' => static fn () => $base()->addMethodLeg(PaymentMethod::WALLET, 'A', 10000, ['providerCode' => 'B']),
-            'invalid providerCode' => static fn () => $base()->addMethodLeg(PaymentMethod::WALLET, 'PAYCELL WALLET', 10000),
-            'duplicate provider' => static fn () => $base()->addMethodLeg(PaymentMethod::WALLET, 'A', 10000)->addMethodLeg(PaymentMethod::WALLET, 'A', 10000),
-            'duplicate card' => static fn () => $base()->addCardLeg('ct_1', 10000)->addCardLeg('ct_1', 10000),
-            'promissory schedule' => static fn () => $base()->addMethodLeg(PaymentMethod::PROMISSORY_NOTE, 'A', 10000, ['schedule' => [['amount' => 10000, 'dueDate' => '2030-01-15']]]),
-            'promissory without noteCount' => static fn () => $base()->addMethodLeg(PaymentMethod::PROMISSORY_NOTE, 'A', 10000),
-            'installment without quote' => static fn () => $base()->addCardLeg('ct_1', 10000, false, 2),
-            'installment above 36' => static fn () => $base()->addCardLeg('ct_1', 10000, false, 37, 'iq'),
-            'zero amount' => static fn () => $base()->addCardLeg('ct_1', 0),
-            '3DS without callbackUrl' => static fn () => (new SplitPaymentRequest(10000, 'TRY', 'cuk_1'))->addCardLeg('ct_1', 10000, true)->toArray(),
-            'no legs' => static fn () => (new SplitPaymentRequest(10000, 'TRY', 'cuk_1'))->toArray(),
-            'empty ownerRef' => static fn () => new SplitPaymentRequest(10000, 'TRY', ' '),
+            'card through addMethodLeg' => static fn () => $base()->addMethodLeg(PaymentMethod::CARD, 'X', '10000'),
+            'no block for the method' => static fn () => $base()->addMethodLeg(PaymentMethod::BNPL, 'X', '10000'),
+            'providerCode in the fields' => static fn () => $base()->addMethodLeg(PaymentMethod::WALLET, 'A', '10000', ['providerCode' => 'B']),
+            'invalid providerCode' => static fn () => $base()->addMethodLeg(PaymentMethod::WALLET, 'PAYCELL WALLET', '10000'),
+            'duplicate provider' => static fn () => $base()->addMethodLeg(PaymentMethod::WALLET, 'A', '10000')->addMethodLeg(PaymentMethod::WALLET, 'A', '10000'),
+            'duplicate card' => static fn () => $base()->addCardLeg('ct_1', '10000')->addCardLeg('ct_1', '10000'),
+            'promissory schedule' => static fn () => $base()->addMethodLeg(PaymentMethod::PROMISSORY_NOTE, 'A', '10000', ['schedule' => [['amount' => '10000', 'dueDate' => '2030-01-15']]]),
+            'promissory without noteCount' => static fn () => $base()->addMethodLeg(PaymentMethod::PROMISSORY_NOTE, 'A', '10000'),
+            'installment without quote' => static fn () => $base()->addCardLeg('ct_1', '10000', false, 2),
+            'installment above 36' => static fn () => $base()->addCardLeg('ct_1', '10000', false, 37, 'iq'),
+            'zero amount' => static fn () => $base()->addCardLeg('ct_1', '0'),
+            '3DS without callbackUrl' => static fn () => (new SplitPaymentRequest('10000', 'TRY', 'cuk_1'))->addCardLeg('ct_1', '10000', true)->toArray(),
+            'no legs' => static fn () => (new SplitPaymentRequest('10000', 'TRY', 'cuk_1'))->toArray(),
+            'empty ownerRef' => static fn () => new SplitPaymentRequest('10000', 'TRY', ' '),
             'plain http callback missing scheme' => static fn () => $base()->withCallbackUrl('merchant.example/return'),
         ];
         foreach ($refused as $label => $build) {
@@ -163,9 +163,9 @@ final class SplitPaymentTest extends TestCase
             }
         }
 
-        $six = new SplitPaymentRequest(6000, 'TRY', 'cuk_1');
+        $six = new SplitPaymentRequest('6000', 'TRY', 'cuk_1');
         for ($i = 0; $i < 6; $i++) {
-            $six->addCardLeg('ct_' . $i, 1000);
+            $six->addCardLeg('ct_' . $i, '1000');
         }
         $this->expectException(ConfigurationException::class);
         $six->toArray();
@@ -213,15 +213,15 @@ final class SplitPaymentTest extends TestCase
             'step' => SplitPaymentPendingStep::ACTION,
             'paymentMethod' => 'MOBILE_BILLING',
             'providerCode' => 'PAYCELL_MOBILE_BILLING',
-            'amount' => 40000,
+            'amount' => '40000',
             'paymentId' => self::LEG_PAYMENT_ID,
             'actionId' => 'act_1',
             'redirectPath' => null,
             'action' => ['id' => 'act_1', 'type' => 'OTP', 'status' => 'OPEN', 'expiresAt' => '2026-10-18T13:03:00.000Z'],
         ];
         $steps = [
-            ['legId' => 'leg-1', 'sequence' => 1, 'kind' => 'CARD', 'paymentMethod' => 'CARD', 'providerCode' => null, 'splitBehavior' => 'HOLD_CAPTURE', 'amount' => 60000, 'status' => 'AUTHORIZED', 'paymentId' => null, 'replacesLegId' => null, 'current' => false],
-            ['legId' => 'leg-2', 'sequence' => 2, 'kind' => 'METHOD', 'paymentMethod' => 'MOBILE_BILLING', 'providerCode' => 'PAYCELL_MOBILE_BILLING', 'splitBehavior' => 'CAPTURE_IRREVERSIBLE', 'amount' => 40000, 'status' => 'AWAITING_ACTION', 'paymentId' => self::LEG_PAYMENT_ID, 'replacesLegId' => null, 'current' => true],
+            ['legId' => 'leg-1', 'sequence' => 1, 'kind' => 'CARD', 'paymentMethod' => 'CARD', 'providerCode' => null, 'splitBehavior' => 'HOLD_CAPTURE', 'amount' => '60000', 'status' => 'AUTHORIZED', 'paymentId' => null, 'replacesLegId' => null, 'current' => false],
+            ['legId' => 'leg-2', 'sequence' => 2, 'kind' => 'METHOD', 'paymentMethod' => 'MOBILE_BILLING', 'providerCode' => 'PAYCELL_MOBILE_BILLING', 'splitBehavior' => 'CAPTURE_IRREVERSIBLE', 'amount' => '40000', 'status' => 'AWAITING_ACTION', 'paymentId' => self::LEG_PAYMENT_ID, 'replacesLegId' => null, 'current' => true],
         ];
         foreach (SplitPaymentStatus::IN_PROGRESS as $status) {
             [$api, $http] = $this->api();
@@ -289,21 +289,21 @@ final class SplitPaymentTest extends TestCase
             'status' => 'COMPLETED',
             'currency' => 'TRY',
             'legs' => [[
-                'id' => 'leg-1', 'sequence' => 1, 'legAmount' => 60000, 'installmentCount' => 3, 'chargeAmount' => 63000,
-                'capturedAmount' => 63000, 'refundedAmount' => 0, 'legStatus' => 'CAPTURED', 'paymentMethod' => 'CARD',
+                'id' => 'leg-1', 'sequence' => 1, 'legAmount' => '60000', 'installmentCount' => 3, 'chargeAmount' => '63000',
+                'capturedAmount' => '63000', 'refundedAmount' => '0', 'legStatus' => 'CAPTURED', 'paymentMethod' => 'CARD',
                 'refundState' => null, 'dispute' => null,
             ]],
-            'refund' => ['refundableAmount' => 63000, 'nonRefundableAmount' => 40000, 'refundedAmount' => 0],
-            'dispute' => ['hasDispute' => false, 'disputedAmount' => 0, 'legCount' => 0],
+            'refund' => ['refundableAmount' => '63000', 'nonRefundableAmount' => '40000', 'refundedAmount' => '0'],
+            'dispute' => ['hasDispute' => false, 'disputedAmount' => '0', 'legCount' => 0],
         ]]);
         $detail = (new PaymentClient($api))->getSplitPayment(self::SPLIT_ID);
         $call = $http->lastCall();
         $this->assertSame('GET', $call['method']);
         $this->assertSame('https://gw.example.com/api/v1/payments/split/' . self::SPLIT_ID, $call['url']);
         $this->assertArrayNotHasKey('X-Signature', $call['headers']);
-        $this->assertSame(63000, $detail->refundableAmount());
-        $this->assertSame(40000, $detail->nonRefundableAmount());
-        $this->assertSame(63000, $detail->legs()[0]->chargeAmount());
+        $this->assertSame('63000', $detail->refundableAmount());
+        $this->assertSame('40000', $detail->nonRefundableAmount());
+        $this->assertSame('63000', $detail->legs()[0]->chargeAmount());
         $this->assertSame(3, $detail->legs()[0]->installmentCount());
 
         [$api, $http] = $this->api();
@@ -336,22 +336,22 @@ final class SplitPaymentTest extends TestCase
         [$api, $http] = $this->api();
         $http->pushJson(200, ['status' => 'success', 'code' => 'SPLIT_REFUND_COMPLETED', 'data' => [
             'refundRequestId' => 'rr_1', 'splitPaymentId' => self::SPLIT_ID, 'status' => 'COMPLETED',
-            'requestedAmount' => 1500, 'refundedAmount' => 1500, 'refundableAmount' => 61500, 'nonRefundableAmount' => 40000,
-            'duplicate' => false, 'legs' => [['legId' => 'leg-1', 'status' => 'SUCCEEDED', 'amount' => 1500]],
+            'requestedAmount' => '1500', 'refundedAmount' => '1500', 'refundableAmount' => '61500', 'nonRefundableAmount' => '40000',
+            'duplicate' => false, 'legs' => [['legId' => 'leg-1', 'status' => 'SUCCEEDED', 'amount' => '1500']],
         ]]);
 
-        $result = (new PaymentClient($api))->refundSplitPayment(self::SPLIT_ID, 1500, 'Customer return', 'refund:order-2026-001:1');
+        $result = (new PaymentClient($api))->refundSplitPayment(self::SPLIT_ID, '1500', 'Customer return', 'refund:order-2026-001:1');
 
         $call = $http->lastCall();
         $this->assertSame('https://gw.example.com/api/v1/payments/split/' . self::SPLIT_ID . '/refund', $call['url']);
-        $this->assertSame(['amount' => 1500, 'reason' => 'Customer return'], self::body($http));
+        $this->assertSame(['amount' => '1500', 'reason' => 'Customer return'], self::body($http));
         $this->assertSame('refund:order-2026-001:1', $call['headers']['Idempotency-Key']);
         $this->assertArrayHasKey('X-Signature', $call['headers']);
         $this->assertTrue($result->isCompleted());
-        $this->assertSame(61500, $result->refundableAmount());
+        $this->assertSame('61500', $result->refundableAmount());
         $this->assertCount(1, $result->legs());
 
-        foreach ([[1500, null], [0, 'k'], [100, str_repeat('k', 201)]] as [$amount, $key]) {
+        foreach ([['1500', null], ['0', 'k'], ['100', str_repeat('k', 201)]] as [$amount, $key]) {
             try {
                 (new PaymentClient($api))->refundSplitPayment(self::SPLIT_ID, $amount, null, $key);
                 $this->fail('must be refused');
@@ -369,7 +369,7 @@ final class SplitPaymentTest extends TestCase
             'legs' => [['legId' => 'l1', 'status' => 'SUCCEEDED'], ['legId' => 'l2', 'status' => 'FAILED', 'errorCode' => 'payment.refund.provider_error']],
         ]]);
         try {
-            (new PaymentClient($api))->refundSplitPayment(self::SPLIT_ID, 1500, null, 'k');
+            (new PaymentClient($api))->refundSplitPayment(self::SPLIT_ID, '1500', null, 'k');
             $this->fail('an incomplete refund must throw');
         } catch (ApiException $e) {
             $this->assertSame('split_pay.refund.incomplete', $e->getErrorCode());

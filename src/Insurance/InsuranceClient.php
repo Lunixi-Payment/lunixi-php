@@ -1027,13 +1027,9 @@ final class InsuranceClient
     }
 
     /** @param mixed $value */
-    private static function requirePositiveMinor($value, string $field): int
+    private static function requirePositiveMinor($value, string $field): string
     {
-        if (!is_int($value) || $value < 1) {
-            throw new ConfigurationException("'{$field}' must be an integer of at least 1 in minor units (4900 = 49.00 TRY).");
-        }
-
-        return $value;
+        return \Lunixi\Sdk\Commerce\Money::positive($value, $field);
     }
 
     /**
