@@ -28,7 +28,7 @@ adapters over this SDK.
 - **Requires:** PHP 7.4+, `ext-sodium`, `ext-curl`, `ext-json`
 - **License:** MIT
 
-**Version 1.0.1** requires the canonical money-string API. Install it after the version is available on [Packagist](https://packagist.org/packages/lunixi/php-sdk).
+**Version 1.0.1** is published on [Packagist](https://packagist.org/packages/lunixi/php-sdk) and requires the canonical money-string API.
 PHP 8.5 error-handler compatibility is preserved.
 The validated backend `paymentPageUrl` contract and merchant-site Lunixi form
 remain available.
