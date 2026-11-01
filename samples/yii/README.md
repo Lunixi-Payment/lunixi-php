@@ -4,7 +4,7 @@
 
 [English](README.md) · [Türkçe](README.tr.md) · [Guide](https://docs.lunixi.com/en/sdks/yii) · [Source](https://github.com/Lunixi-Payment/lunixi-php/tree/main/samples/yii)
 
-A runnable **Yii 2.0.55 / PHP 8.2+** web/console application using **`lunixi/php-sdk:^0.29.5`**. Native `IdentityInterface` session login, CSRF and owned-order checkout connect to hosted or embedded Lunixi form. Exact raw webhooks and authenticated settlement update native SQLite orders, event inbox and encrypted outbox atomically. This is a source example in the PHP SDK repository, not a separately published Yii extension.
+A runnable **Yii 2.0.55 / PHP 8.2+** web/console application using **`lunixi/php-sdk:^1.0.1`**. Native `IdentityInterface` session login, CSRF and owned-order checkout connect to hosted or embedded Lunixi form. Exact raw webhooks and authenticated settlement update native SQLite orders, event inbox and encrypted outbox atomically. This is a source example in the PHP SDK repository, not a separately published Yii extension.
 
 Two explicit demo accounts own separate server-side 19.90 TRY orders. Browser amounts are never authoritative; the module collects no card data and enables no implicit mock payment. Methods, split cards, installments and insurance stay configured in Lunixi. Authentication/signing, integer money, split-parent proof and safe financial retries remain in the shared SDK.
 

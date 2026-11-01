@@ -163,7 +163,6 @@ final class CheckoutService
             if ($existing['state'] !== 'confirmed') {
                 self::assertReplayWindow($existing['createdAt'] ?? null);
                 if ($action === 'refund') {
-                    if ($amount === null) { throw new \LogicException('Refund amount is required.'); }
                     if ($existing['splitId'] !== null) { $this->client->payments()->refundSplitPayment($existing['splitId'], $amount, 'Commerce refund', $existing['key']); }
                     else { $this->client->payments()->refund($r['paymentId'], $amount, 'Commerce refund', $existing['key']); }
                 } elseif ($action === 'capture') { $this->client->payments()->capture($r['paymentId'], $amount, $existing['key']); }

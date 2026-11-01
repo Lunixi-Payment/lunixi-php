@@ -4,7 +4,7 @@
 
 [English](README.md) · [Rehber](https://docs.lunixi.com/tr/sdks/yii) · [Kaynak](https://github.com/Lunixi-Payment/lunixi-php/tree/main/samples/yii)
 
-**Yii 2.0.55 / PHP 8.2+** üzerinde çalışan web/konsol örneği; **`lunixi/php-sdk:^0.29.5`** kullanır. Yerel IdentityInterface oturumu, parola özeti, CSRF ve sipariş sahipliğini gömülü/yönlendirmeli Lunixi formuna bağlar. Ham imzalı webhook, doğrulanmış tahsilat ve native SQLite transaction ile sipariş, olay kaydı ve şifreli outbox birlikte yazılır. Mevcut PHP SDK reposundaki kaynak örneğidir; ayrı Yii eklentisi değildir.
+**Yii 2.0.55 / PHP 8.2+** üzerinde çalışan web/konsol örneği; **`lunixi/php-sdk:^1.0.1`** kullanır. Yerel IdentityInterface oturumu, parola özeti, CSRF ve sipariş sahipliğini gömülü/yönlendirmeli Lunixi formuna bağlar. Ham imzalı webhook, doğrulanmış tahsilat ve native SQLite transaction ile sipariş, olay kaydı ve şifreli outbox birlikte yazılır. Mevcut PHP SDK reposundaki kaynak örneğidir; ayrı Yii eklentisi değildir.
 
 İki açıkça oluşturulan deneme hesabının ayrı sunucu tarafı 19,90 TRY siparişi bulunur. İstemci tutarı ödeme kanıtı değildir; kart verisi toplanmaz ve otomatik sahte ödeme açılmaz. Yöntemler, çoklu kart, taksit ve sigorta Lunixi panelindedir. İmzalama, integer para ve güvenli tekrar ortak SDK'dadır.
 

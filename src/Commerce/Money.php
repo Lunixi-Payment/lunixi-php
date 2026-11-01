@@ -31,7 +31,8 @@ final class Money
     }
 
     /**
-     * Validate a fiat minor-unit string without coercion. @param mixed $value
+     * Validate a fiat minor-unit string without coercion.
+     * @param mixed $value
      */
     public static function integer($value): string
     {
@@ -43,7 +44,8 @@ final class Money
     }
 
     /**
-     * Validate the unlimited wire domain (also used by crypto). @param mixed $value
+     * Validate the unlimited wire domain (also used by crypto).
+     * @param mixed $value
      */
     public static function canonical($value, bool $signed = false): string
     {
@@ -55,7 +57,8 @@ final class Money
     }
 
     /**
-     * Nonnegative request money in the fiat domain. @param mixed $value
+     * Nonnegative request money in the fiat domain.
+     * @param mixed $value
      */
     public static function nonnegative($value, string $field): string
     {
@@ -64,7 +67,8 @@ final class Money
     }
 
     /**
-     * Exact native BIGINT storage decoding only; never use for public payloads. @param mixed $value
+     * Exact native BIGINT storage decoding only; never use for public payloads.
+     * @param mixed $value
      */
     public static function fromStorage($value): string
     {
@@ -73,7 +77,8 @@ final class Money
     }
 
     /**
-     * Request validation with the SDK's configuration exception. @param mixed $value
+     * Request validation with the SDK's configuration exception.
+     * @param mixed $value
      */
     public static function positive($value, string $field = 'amount'): string
     {

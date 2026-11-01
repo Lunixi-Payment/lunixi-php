@@ -199,4 +199,16 @@ final class MoneyStringContractTest extends TestCase
         self::assertFalse(MoneyPayload::supports('/api/v1/identity/analyze'));
         self::assertSame($opaque['metadata'], (new PaymentIntent(['amount' => '1'] + $opaque))->raw()['metadata']);
     }
+
+    public function testDecodedObjectMoneyValidationPreservesBytesAndRejectsNumbers(): void
+    {
+        $payload = json_decode('{"data":{"amount":"9007199254740993","items":[{"price":"0"}]},"metadata":{"amount":1}}');
+        $before = json_encode($payload);
+        MoneyPayload::validate($payload);
+        self::assertSame($before, json_encode($payload));
+
+        $payload->data->items[0]->price = 1;
+        $this->expectException(\InvalidArgumentException::class);
+        MoneyPayload::validate($payload);
+    }
 }

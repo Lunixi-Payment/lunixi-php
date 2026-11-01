@@ -2,6 +2,11 @@
 
 All notable changes to `lunixi/php-sdk`.
 
+## 1.0.1 — 2026-11-01
+
+- Correct PHP 7.4-compatible money PHPDoc and validate stdClass monetary payloads with the same strict rules as arrays.
+- Remove the unreachable null-refund branch without changing explicit-null rejection; update 1.0.1 installation guidance.
+
 ## 1.0.0 — 2026-11-01
 
 - Physical POS payment/item/filter/report money uses canonical signed64 strings; raw numeric/null amounts are rejected before HTTP, malformed monetary 2xx payment replies retain UNKNOWN semantics, and signed webhooks are checked after signature verification.

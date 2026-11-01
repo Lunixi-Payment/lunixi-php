@@ -37,7 +37,10 @@ final class MoneyPayload
         return preg_match('~^/api/v1/(?:payments|payment-links|marketplace|subscriptions|subscription|wallet|bank-connect|insurance|fraud)(?:/|$)|^/api/v1/bin/installments$~D', $path) === 1;
     }
 
-    /** Operation amount absence is deliberate; explicit null must never become a full capture/refund. @param mixed $payload */
+    /**
+     * Operation amount absence is deliberate; explicit null must never become a full capture/refund.
+     * @param mixed $payload
+     */
     public static function validateOperationAmount(string $method, string $path, $payload): void
     {
         if (strtoupper($method) !== 'POST' || preg_match('~^/api/v1/payments/(?:[^/]+/(?:capture|refund|refund-to-wallet)|split/[^/]+/refund)$~D', $path) !== 1) { return; }
@@ -49,7 +52,8 @@ final class MoneyPayload
     public static function validate($payload): void
     {
         if (!is_array($payload) && !$payload instanceof \stdClass) { return; }
-        foreach ($payload as $key => $value) {
+        $members = $payload instanceof \stdClass ? get_object_vars($payload) : $payload;
+        foreach ($members as $key => $value) {
             if ($value === null) { continue; }
             if (in_array($key, self::FIELDS, true)) {
                 Money::canonical($value, stripos($key, 'balance') !== false || in_array($key, ['availableMinor', 'availableWithoutOverdraftMinor'], true));

@@ -4,7 +4,7 @@
 
 [English](README.md) · [Rehber](https://docs.lunixi.com/tr/sdks/codeigniter) · [Kaynak](https://github.com/Lunixi-Payment/lunixi-php/tree/main/samples/codeigniter)
 
-**CodeIgniter 4.7.5 / PHP 8.2+** üzerinde çalışan, **`lunixi/php-sdk:^0.29.5`** kullanan uygulama örneği. Yerel oturum/parola özeti, CSRF ve sipariş sahipliği, yönlendirmeli/gömülü Lunixi formu, ham imzalı webhook, gerçek SQLite transaction ve şifreli kalıcı ödeme olay kuyruğu içerir. Mevcut PHP SDK reposunun örneğidir; ayrı paket veya Bundle değildir.
+**CodeIgniter 4.7.5 / PHP 8.2+** üzerinde çalışan, **`lunixi/php-sdk:^1.0.1`** kullanan uygulama örneği. Yerel oturum/parola özeti, CSRF ve sipariş sahipliği, yönlendirmeli/gömülü Lunixi formu, ham imzalı webhook, gerçek SQLite transaction ve şifreli kalıcı ödeme olay kuyruğu içerir. Mevcut PHP SDK reposunun örneğidir; ayrı paket veya Bundle değildir.
 
 İki açıkça oluşturulan deneme hesabının ayrı sunucu tarafı 19,90 TRY siparişi bulunur. Tarayıcıdan tutar alınmaz, kart verisi toplanmaz, otomatik sahte ödeme modu açılmaz. Çoklu kart, taksit, alternatif yöntemler ve sigorta Lunixi form ayarlarındadır. İmzalama, para ve tahsilat kanıtı ortak SDK'dadır.
 

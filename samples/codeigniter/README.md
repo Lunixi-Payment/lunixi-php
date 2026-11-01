@@ -4,7 +4,7 @@
 
 [English](README.md) · [Türkçe](README.tr.md) · [Guide](https://docs.lunixi.com/en/sdks/codeigniter) · [Source](https://github.com/Lunixi-Payment/lunixi-php/tree/main/samples/codeigniter)
 
-A runnable **CodeIgniter 4.7.5 / PHP 8.2+** application using **`lunixi/php-sdk:^0.29.5`**. It has native session login, CSRF-protected owned-order checkout, hosted or embedded Lunixi form, a raw signed webhook endpoint, native SQLite transactions and an encrypted durable payment outbox. It is a framework example inside the existing PHP SDK repository, not a separate package/bundle.
+A runnable **CodeIgniter 4.7.5 / PHP 8.2+** application using **`lunixi/php-sdk:^1.0.1`**. It has native session login, CSRF-protected owned-order checkout, hosted or embedded Lunixi form, a raw signed webhook endpoint, native SQLite transactions and an encrypted durable payment outbox. It is a framework example inside the existing PHP SDK repository, not a separate package/bundle.
 
 The two explicit demo accounts each own a server-side 19.90 TRY order. No browser amount is accepted, no raw card data is collected and no API/mock payment is enabled automatically. Payment methods, split cards, installments and insurance stay managed in Lunixi's form settings. The shared SDK owns signing, payment evidence, split settlement, token encryption and safe retry rules.
 
