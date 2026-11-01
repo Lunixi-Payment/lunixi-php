@@ -73,7 +73,7 @@ Native platform modules bundle this SDK through PHP-Scoper and use the shared ch
 
 Every merchant integration offers the existing Lunixi form on the merchant’s own page; embedded checkout is the default. Mount the official browser SDK using the create-intent `token` (or Commerce `browserConfig()`); enabled methods, multi-card, installments and insurance remain managed in the Lunixi form and panel.
 
-PHP SDK **0.29.5** also exposes `$intent->paymentPageUrl()` and `$session->hostedUrl()` for optional redirects. They use the exact validated backend `paymentPageUrl`, not a URL built from the embedded token. The URL may carry a different origin-bound token and is encrypted in durable Commerce attempts. A missing legacy URL never authorizes a fresh intent or key. See [the complete rendering contract](COMMERCE.md#checkout-rendering).
+PHP SDK **1.0.1** also exposes `$intent->paymentPageUrl()` and `$session->hostedUrl()` for optional redirects. They use the exact validated backend `paymentPageUrl`, not a URL built from the embedded token. The URL may carry a different origin-bound token and is encrypted in durable Commerce attempts. A missing legacy URL never authorizes a fresh intent or key. See [the complete rendering contract](COMMERCE.md#checkout-rendering).
 
 ## Quick examples
 

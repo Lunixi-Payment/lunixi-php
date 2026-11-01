@@ -4,7 +4,7 @@
 
 ## Installation and durable storage
 
-Use `lunixi/php-sdk` 0.29.5 or later for backend `paymentPageUrl` support. ZIP modules bundle a scoped copy so a merchant does not need Composer or a conflicting site-wide vendor tree. A source repository release does not imply that a package registry or platform marketplace has accepted the module.
+Use `lunixi/php-sdk` ^1.0.1 for the string money contract and backend `paymentPageUrl` support. ZIP modules bundle a scoped copy so a merchant does not need Composer or a conflicting site-wide vendor tree. A source repository release does not imply that a package registry or platform marketplace has accepted the module.
 
 Create a separate, backed-up 32-byte encryption key outside the web root. Do not derive it from a webhook secret, merchant private key, database password or public platform identifier. Configure an HTTPS gateway origin only from an operator-approved allowlist. Production defaults to `https://api-gateway.lunixi.com`; test/live access is determined by the merchant API key.
 
