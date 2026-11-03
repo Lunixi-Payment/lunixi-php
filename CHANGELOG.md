@@ -2,6 +2,10 @@
 
 All notable changes to `lunixi/php-sdk`.
 
+## 1.1.0 — 2026-11-03
+
+- Physical POS device identity on `PhysicalPosManagementClient`: `listDeviceKeys()` / `iterateDeviceKeys()` (`GET /devices/{deviceId}/keys`, `physical_pos:view`), `revokeDeviceKey()`, `revertDeviceEnrollment()` and `revokeActivationCode()` (`physical_pos:identity`; no `Idempotency-Key`). Key ids are `pdk_…`, not UUIDs. Activation codes are not issued with an API key (panel only).
+
 ## 1.0.1 — 2026-11-01
 
 - Correct PHP 7.4-compatible money PHPDoc and validate stdClass monetary payloads with the same strict rules as arrays.

@@ -169,7 +169,7 @@ final class PhysicalPosParityTest extends TestCase
         foreach ([
             'createStore', 'updateStore', 'statusChange', 'createRegister', 'updateRegister', 'createTerminal', 'updateTerminal',
             'addTerminalAcquirer', 'updateTerminalAcquirer', 'changeTerminalDevice', 'createDevice', 'updateDevice', 'assignDevice',
-            'changeDeviceLifecycle',
+            'changeDeviceLifecycle', 'revokeDeviceKey', 'revertDeviceEnrollment', 'revokeActivationCode',
         ] as $name) {
             $this->assertArrayHasKey($name, $management, $name);
             $this->assertSame($expected[$name], $management[$name], $name);

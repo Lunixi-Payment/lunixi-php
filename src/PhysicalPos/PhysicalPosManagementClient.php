@@ -44,9 +44,15 @@ use Lunixi\Sdk\Exception\ConfigurationException;
  *   changeDeviceLifecycle                         POST  …/devices/{deviceId}/lifecycle
  *   retireDevice                                  POST  …/devices/{deviceId}/retire                (Idempotency-Key)
  *   listDeviceAssignments / listDeviceAudit (+iterate) GET …/devices/{deviceId}/{assignments|audit}
+ *   listDeviceKeys / iterateDeviceKeys            GET   …/devices/{deviceId}/keys
+ *   revokeDeviceKey                               POST  …/devices/{deviceId}/keys/{keyId}/revoke
+ *   revertDeviceEnrollment                        POST  …/devices/{deviceId}/keys/{keyId}/revert-enrollment
+ *   revokeActivationCode                          POST  …/devices/{deviceId}/activation-code/revoke
  *
  * Every call is signed. Reads need `physical_pos:view`, writes
- * `physical_pos:manage` (which cannot move money). A TEST key reads only.
+ * `physical_pos:manage` (which cannot move money); the device identity writes
+ * (key revocation, enrollment revert, activation-code revocation) need
+ * `physical_pos:identity`. A TEST key reads only.
  * Updates and state changes carry the record's last `rowVersion` (409
  * `physical_pos.version_conflict` when stale). Reason codes are closed sets
  * checked by the gateway (400 `physical_pos.input.reason_code_invalid`).
@@ -64,7 +70,7 @@ use Lunixi\Sdk\Exception\ConfigurationException;
  * Records are returned as the gateway sends them (associative arrays, e.g.
  * `store`: id, code, name, city, district, addressLine, timezone, storeStatus,
  * externalRef, rowVersion, createdAt, updatedAt); an empty value is null.
- * Device identity (activation codes, device keys) is not part of this client.
+ * Activation codes are issued in the panel only (an API key cannot issue one).
  */
 final class PhysicalPosManagementClient
 {
@@ -101,6 +107,9 @@ final class PhysicalPosManagementClient
         'updateDevice' => ['rowVersion' => 'rowVersion', 'displayName' => '?string', 'externalRef' => '?string', 'integrationChannel' => 'string', 'channelVariant' => '?string', 'appMode' => '?string'],
         'assignDevice' => ['rowVersion' => 'rowVersion', 'storeId' => 'string', 'registerId' => '?string', 'reasonCode' => 'string'],
         'changeDeviceLifecycle' => ['rowVersion' => 'rowVersion', 'target' => 'string', 'reasonCode' => 'string'],
+        'revokeDeviceKey' => ['rowVersion' => 'rowVersion', 'reasonCode' => 'string'],
+        'revertDeviceEnrollment' => ['reasonCode' => 'string'],
+        'revokeActivationCode' => ['reasonCode' => 'string'],
     ];
 
     private ApiClient $api;
@@ -660,6 +669,79 @@ final class PhysicalPosManagementClient
         return PhysicalPosRequest::paginate(fn (array $page): PhysicalPosPage => $this->listDeviceAudit($deviceId, $page), $filters);
     }
 
+    // ── Device identity ───────────────────────────────────────────────────────
+
+    /**
+     * The device's identity keys, fingerprints only: keyId (`pdk_…`), algorithm
+     * (ED25519), keyStatus (ACTIVE | SUPERSEDED | REVOKED), enrolledVia
+     * (PAIRING | ACTIVATION_CODE | ROTATION), fingerprint (`XXXX-XXXX`),
+     * lineageRootKeyId, rotatedFromKeyId, activatedAt, supersededAt, revokedAt,
+     * revokeReason, rowVersion.
+     *
+     * @param array<string,mixed> $filters limit, cursor.
+     * @return PhysicalPosPage<array<string,mixed>>
+     * @throws ApiException
+     */
+    public function listDeviceKeys(string $deviceId, array $filters = []): PhysicalPosPage
+    {
+        return $this->page('/devices/' . PhysicalPosRequest::pathId($deviceId, 'deviceId') . '/keys', $filters, 'history');
+    }
+
+    /**
+     * @param array<string,mixed> $filters limit, cursor.
+     * @return Generator<int,array<string,mixed>>
+     */
+    public function iterateDeviceKeys(string $deviceId, array $filters = []): Generator
+    {
+        return PhysicalPosRequest::paginate(fn (array $page): PhysicalPosPage => $this->listDeviceKeys($deviceId, $page), $filters);
+    }
+
+    /**
+     * Revokes a device key (`physical_pos:identity`).
+     *
+     * @param array<string,mixed> $request rowVersion (the key's), reasonCode (DEVICE_LOST | DEVICE_STOLEN |
+     *   KEY_COMPROMISED | DEVICE_REPLACED | MERCHANT_REQUEST | OTHER).
+     * @return array<string,mixed> `{key, lifecycleStatus, replayed}`.
+     * @throws ConfigurationException
+     * @throws ApiException
+     */
+    public function revokeDeviceKey(string $deviceId, string $keyId, array $request): array
+    {
+        $payload = $this->body($request, 'revokeDeviceKey', self::SCHEMAS['revokeDeviceKey'], ['rowVersion', 'reasonCode']);
+
+        return PhysicalPosRequest::data($this->write('POST', self::keyPath($deviceId, $keyId) . '/revoke', $payload));
+    }
+
+    /**
+     * Reverts an activation-code enrollment: revokes the key and suspends the device (`physical_pos:identity`).
+     *
+     * @param array<string,mixed> $request reasonCode (NOT_MY_DEVICE | SUSPECTED_PHISHING | WRONG_DEVICE | OTHER).
+     * @return array<string,mixed> `{key, lifecycleStatus, replayed}`.
+     * @throws ConfigurationException
+     * @throws ApiException
+     */
+    public function revertDeviceEnrollment(string $deviceId, string $keyId, array $request): array
+    {
+        $payload = $this->body($request, 'revertDeviceEnrollment', self::SCHEMAS['revertDeviceEnrollment'], ['reasonCode']);
+
+        return PhysicalPosRequest::data($this->write('POST', self::keyPath($deviceId, $keyId) . '/revert-enrollment', $payload));
+    }
+
+    /**
+     * Revokes the device's open activation code (`physical_pos:identity`).
+     *
+     * @param array<string,mixed> $request reasonCode (MERCHANT_REVOKED | DEVICE_LOST | DEVICE_STOLEN | OTHER).
+     * @return array<string,mixed> `{deviceId, revokedAt, revokeReason}`.
+     * @throws ConfigurationException
+     * @throws ApiException
+     */
+    public function revokeActivationCode(string $deviceId, array $request): array
+    {
+        $payload = $this->body($request, 'revokeActivationCode', self::SCHEMAS['revokeActivationCode'], ['reasonCode']);
+
+        return PhysicalPosRequest::data($this->write('POST', '/devices/' . PhysicalPosRequest::pathId($deviceId, 'deviceId') . '/activation-code/revoke', $payload));
+    }
+
     /**
      * Body field names each write accepts (`statusChange` = archive, restore,
      * close, device-link close, storage, retirement). Anything else is refused
@@ -678,6 +760,11 @@ final class PhysicalPosManagementClient
     }
 
     // ── Internals ─────────────────────────────────────────────────────────────
+
+    private static function keyPath(string $deviceId, string $keyId): string
+    {
+        return '/devices/' . PhysicalPosRequest::pathId($deviceId, 'deviceId') . '/keys/' . PhysicalPosRequest::pathId($keyId, 'keyId');
+    }
 
     /**
      * @param array<string,mixed> $request

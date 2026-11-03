@@ -36,6 +36,7 @@ final class PhysicalPosManagementClientTest extends TestCase
     private const ACQUIRER_ID = '44444444-4444-4444-8444-444444444444';
     private const DEVICE_ID = '55555555-5555-4555-8555-555555555555';
     private const KEY = 'pos-mgmt-key-0001';
+    private const DEVICE_KEY_ID = 'pdk_AAAAAAAAAAAAAAAAAAAAAAAA';
     private const UUID_V4 = '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/';
 
     private string $publicKey = '';
@@ -115,6 +116,16 @@ final class PhysicalPosManagementClientTest extends TestCase
             'serialNumber' => 'PAV00012345', 'environment' => 'LIVE', 'lifecycleStatus' => 'PENDING', 'ownershipStatus' => 'UNVERIFIED',
             'integrationChannel' => 'APP2APP', 'appMode' => null, 'store' => null, 'register' => null, 'logicalTerminal' => null,
             'createdAt' => '2026-10-30T09:00:00.000Z', 'rowVersion' => 1, 'updatedAt' => '2026-10-30T09:00:00.000Z',
+        ], $overrides);
+    }
+
+    private static function deviceKeyJson(array $overrides = []): array
+    {
+        return array_merge([
+            'keyId' => self::DEVICE_KEY_ID, 'algorithm' => 'ED25519', 'keyStatus' => 'ACTIVE', 'enrolledVia' => 'PAIRING',
+            'fingerprint' => 'ABCD-EF12', 'lineageRootKeyId' => self::DEVICE_KEY_ID, 'rotatedFromKeyId' => null,
+            'activatedAt' => '2026-11-01T09:00:00.000Z', 'supersededAt' => null, 'revokedAt' => null, 'revokeReason' => null,
+            'rowVersion' => 1,
         ], $overrides);
     }
 
@@ -370,6 +381,46 @@ final class PhysicalPosManagementClientTest extends TestCase
         }
     }
 
+    public function testDeviceIdentityRoutes(): void
+    {
+        [$client, $http] = $this->make();
+        $revoked = self::deviceKeyJson(['keyStatus' => 'REVOKED', 'revokedAt' => '2026-11-02T09:00:00.000Z', 'revokeReason' => 'DEVICE_LOST', 'rowVersion' => 2]);
+        $http->pushJson(200, self::page([self::deviceKeyJson()], true, 'k1'));
+        $http->pushJson(200, self::envelope(['key' => $revoked, 'lifecycleStatus' => 'SUSPENDED', 'replayed' => false]));
+        $http->pushJson(200, self::envelope(['key' => $revoked, 'lifecycleStatus' => 'SUSPENDED', 'replayed' => true]));
+        $http->pushJson(200, self::envelope(['deviceId' => self::DEVICE_ID, 'revokedAt' => '2026-11-02T09:00:00.000Z', 'revokeReason' => 'MERCHANT_REVOKED']));
+
+        $page = $client->listDeviceKeys(self::DEVICE_ID, ['limit' => 10]);
+        $this->assertSame(self::BASE . '/devices/' . self::DEVICE_ID . '/keys?limit=10', self::target($http->lastCall()));
+        $this->assertSame(self::DEVICE_KEY_ID, $page->items()[0]['keyId']);
+        $this->assertTrue($page->hasMore());
+
+        $result = $client->revokeDeviceKey(self::DEVICE_ID, self::DEVICE_KEY_ID, ['rowVersion' => 1, 'reasonCode' => 'DEVICE_LOST']);
+        $this->assertSame(self::BASE . '/devices/' . self::DEVICE_ID . '/keys/' . self::DEVICE_KEY_ID . '/revoke', self::target($http->lastCall()));
+        $this->assertSame(['rowVersion' => 1, 'reasonCode' => 'DEVICE_LOST'], self::bodyOf($http->lastCall()));
+        $this->assertArrayNotHasKey('Idempotency-Key', $http->lastCall()['headers']);
+        $this->assertSame('REVOKED', $result['key']['keyStatus']);
+        $this->assertSame('SUSPENDED', $result['lifecycleStatus']);
+        $this->assertFalse($result['replayed']);
+
+        $reverted = $client->revertDeviceEnrollment(self::DEVICE_ID, self::DEVICE_KEY_ID, ['reasonCode' => 'NOT_MY_DEVICE']);
+        $this->assertSame(self::BASE . '/devices/' . self::DEVICE_ID . '/keys/' . self::DEVICE_KEY_ID . '/revert-enrollment', self::target($http->lastCall()));
+        $this->assertSame(['reasonCode' => 'NOT_MY_DEVICE'], self::bodyOf($http->lastCall()));
+        $this->assertArrayNotHasKey('Idempotency-Key', $http->lastCall()['headers']);
+        $this->assertTrue($reverted['replayed']);
+
+        $code = $client->revokeActivationCode(self::DEVICE_ID, ['reasonCode' => 'MERCHANT_REVOKED']);
+        $this->assertSame(self::BASE . '/devices/' . self::DEVICE_ID . '/activation-code/revoke', self::target($http->lastCall()));
+        $this->assertSame(['reasonCode' => 'MERCHANT_REVOKED'], self::bodyOf($http->lastCall()));
+        $this->assertArrayNotHasKey('Idempotency-Key', $http->lastCall()['headers']);
+        $this->assertSame('MERCHANT_REVOKED', $code['revokeReason']);
+
+        $this->assertFalse(method_exists($client, 'issueActivationCode'));
+        foreach ($http->calls as $call) {
+            $this->assertSame('OK', $this->verdict($call));
+        }
+    }
+
     public function testIteratorFollowsTheCursor(): void
     {
         [$client, $http] = $this->make();
@@ -414,6 +465,12 @@ final class PhysicalPosManagementClientTest extends TestCase
             'includeTotal as string' => [static fn (PhysicalPosManagementClient $c) => $c->listDevices(['includeTotal' => 'true'])],
             'catalog filter' => [static fn (PhysicalPosManagementClient $c) => $c->listDeviceModels(['q' => 'x'])],
             'empty id' => [static fn (PhysicalPosManagementClient $c) => $c->getDevice('')],
+            'empty key id' => [static fn (PhysicalPosManagementClient $c) => $c->revokeDeviceKey(self::DEVICE_ID, '', ['rowVersion' => 1, 'reasonCode' => 'OTHER'])],
+            'key rowVersion as string' => [static fn (PhysicalPosManagementClient $c) => $c->revokeDeviceKey(self::DEVICE_ID, self::DEVICE_KEY_ID, ['rowVersion' => '1', 'reasonCode' => 'OTHER'])],
+            'key revoke without rowVersion' => [static fn (PhysicalPosManagementClient $c) => $c->revokeDeviceKey(self::DEVICE_ID, self::DEVICE_KEY_ID, ['reasonCode' => 'OTHER'])],
+            'revert with rowVersion' => [static fn (PhysicalPosManagementClient $c) => $c->revertDeviceEnrollment(self::DEVICE_ID, self::DEVICE_KEY_ID, ['reasonCode' => 'OTHER', 'rowVersion' => 1])],
+            'activation code without reason' => [static fn (PhysicalPosManagementClient $c) => $c->revokeActivationCode(self::DEVICE_ID, [])],
+            'key list filter' => [static fn (PhysicalPosManagementClient $c) => $c->listDeviceKeys(self::DEVICE_ID, ['includeTotal' => true])],
         ];
     }
 
