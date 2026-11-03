@@ -11,8 +11,9 @@ use Lunixi\Sdk\Exception\ConfigurationException;
 
 /**
  * Physical POS management — the stores, registers, logical terminals (with
- * their bank rows and device link) and devices your payments run on, plus the
- * catalog and an overview (`/api/v1/physical-pos`, product PHYSICAL_POS).
+ * their bank rows, payment-provider rows and device link) and devices your
+ * payments run on, the end-of-day policy, plus the catalog and an overview
+ * (`/api/v1/physical-pos`, product PHYSICAL_POS).
  *
  *   getOverview                                   GET   /api/v1/physical-pos/overview
  *   listVendors / listDeviceModels / listAcquirers GET  …/catalog/{vendors|device-models|acquirers}
@@ -33,6 +34,9 @@ use Lunixi\Sdk\Exception\ConfigurationException;
  *   listTerminalAcquirers / iterate…              GET   …/terminals/{terminalId}/acquirers
  *   addTerminalAcquirer                           POST  …/terminals/{terminalId}/acquirers         (201, Idempotency-Key)
  *   updateTerminalAcquirer                        PATCH …/terminal-acquirers/{terminalAcquirerId}
+ *   listTerminalProviders / iterate…              GET   …/terminals/{terminalId}/providers
+ *   addTerminalProvider                           POST  …/terminals/{terminalId}/providers         (201, Idempotency-Key)
+ *   updateTerminalProvider                        PATCH …/terminal-providers/{terminalProviderId}
  *   changeTerminalDevice                          POST  …/terminals/{terminalId}/device-link
  *   closeTerminalDeviceLink                       POST  …/terminals/{terminalId}/device-link/close (Idempotency-Key)
  *   listTerminalLinks / listTerminalAudit (+iterate) GET …/terminals/{terminalId}/{links|audit}
@@ -48,6 +52,10 @@ use Lunixi\Sdk\Exception\ConfigurationException;
  *   revokeDeviceKey                               POST  …/devices/{deviceId}/keys/{keyId}/revoke
  *   revertDeviceEnrollment                        POST  …/devices/{deviceId}/keys/{keyId}/revert-enrollment
  *   revokeActivationCode                          POST  …/devices/{deviceId}/activation-code/revoke
+ *   get|set|clearAccountSettlementPolicy          GET / PUT / DELETE …/settlement-policy
+ *   get|set|clearStoreSettlementPolicy            GET / PUT / DELETE …/stores/{storeId}/settlement-policy
+ *   get|set|clearDeviceSettlementPolicy           GET / PUT / DELETE …/devices/{deviceId}/settlement-policy
+ *   getEffectiveSettlementPolicy                  GET   …/devices/{deviceId}/settlement-policy/effective
  *
  * Every call is signed. Reads need `physical_pos:view`, writes
  * `physical_pos:manage` (which cannot move money); the device identity writes
@@ -81,6 +89,7 @@ final class PhysicalPosManagementClient
         'listRegisters' => ['limit', 'cursor', 'includeTotal', 'status'],
         'listTerminals' => ['limit', 'cursor', 'includeTotal', 'status', 'q'],
         'listTerminalAcquirers' => ['limit', 'cursor', 'includeTotal'],
+        'listTerminalProviders' => ['limit', 'cursor', 'includeTotal'],
         'listDevices' => [
             'limit', 'cursor', 'includeTotal', 'storeId', 'registerId', 'vendorCode', 'deviceModelId', 'deviceType',
             'lifecycleStatus', 'ownershipStatus', 'integrationChannel', 'q',
@@ -102,6 +111,8 @@ final class PhysicalPosManagementClient
         'createTerminal' => ['code' => 'string', 'displayName' => 'string', 'vendorCode' => 'string', 'virtualSerial' => 'string', 'vendorTerminalRef' => 'string'],
         'addTerminalAcquirer' => ['vendorAcquirerRef' => 'string', 'merchantNumber' => 'string', 'terminalNumber' => 'string', 'label' => 'string', 'currencies' => 'strings'],
         'updateTerminalAcquirer' => ['rowVersion' => 'rowVersion', 'label' => '?string', 'currencies' => 'strings', 'status' => 'string'],
+        'addTerminalProvider' => ['vendorAccountId' => 'string', 'merchantCode' => 'string', 'terminalCode' => 'string', 'productCode' => 'string', 'label' => 'string'],
+        'updateTerminalProvider' => ['rowVersion' => 'rowVersion', 'label' => '?string', 'status' => 'string'],
         'changeTerminalDevice' => ['rowVersion' => 'rowVersion', 'deviceId' => 'string', 'reasonCode' => 'string'],
         'createDevice' => ['vendorCode' => 'string', 'deviceModelId' => 'string', 'serialNumber' => 'string', 'displayName' => 'string', 'externalRef' => 'string', 'storeId' => 'string', 'registerId' => 'string', 'integrationChannel' => 'string', 'channelVariant' => 'string', 'appMode' => 'string'],
         'updateDevice' => ['rowVersion' => 'rowVersion', 'displayName' => '?string', 'externalRef' => '?string', 'integrationChannel' => 'string', 'channelVariant' => '?string', 'appMode' => '?string'],
@@ -110,6 +121,17 @@ final class PhysicalPosManagementClient
         'revokeDeviceKey' => ['rowVersion' => 'rowVersion', 'reasonCode' => 'string'],
         'revertDeviceEnrollment' => ['reasonCode' => 'string'],
         'revokeActivationCode' => ['reasonCode' => 'string'],
+        'setSettlementPolicy' => [
+            'mode' => 'string',
+            'scheduleTime' => 'string',
+            'timeZone' => 'string',
+            'scheduleDays' => 'strings',
+            'retryWindowMinutes' => 'int',
+            'retryIntervalMinutes' => 'int',
+            'offlineBehavior' => 'string',
+            'overdueAlertHours' => 'int',
+            'expectedRowVersion' => 'rowVersion',
+        ],
     ];
 
     private ApiClient $api;
@@ -453,6 +475,58 @@ final class PhysicalPosManagementClient
     }
 
     /**
+     * Payment-provider rows of a terminal (e.g. a meal card provider's merchant,
+     * terminal and product code): id (the `terminalProviderId` a payment may
+     * name), terminalId, environment, providerCode, vendorAccountId,
+     * merchantCode, terminalCode, productCode, label, providerStatus
+     * (ACTIVE | DISABLED), rowVersion, createdAt, updatedAt.
+     *
+     * @param array<string,mixed> $filters limit, cursor, includeTotal.
+     * @return PhysicalPosPage<array<string,mixed>>
+     * @throws ApiException
+     */
+    public function listTerminalProviders(string $terminalId, array $filters = []): PhysicalPosPage
+    {
+        return $this->page('/terminals/' . PhysicalPosRequest::pathId($terminalId, 'terminalId') . '/providers', $filters, 'listTerminalProviders');
+    }
+
+    /**
+     * @param array<string,mixed> $filters Same as listTerminalProviders().
+     * @return Generator<int,array<string,mixed>>
+     */
+    public function iterateTerminalProviders(string $terminalId, array $filters = []): Generator
+    {
+        return PhysicalPosRequest::paginate(fn (array $page): PhysicalPosPage => $this->listTerminalProviders($terminalId, $page), $filters);
+    }
+
+    /**
+     * Adds a payment-provider row; the provider comes from the vendor account.
+     *
+     * @param array<string,mixed> $request vendorAccountId, merchantCode, terminalCode, productCode? (required by some
+     *   providers), label?.
+     * @return PhysicalPosWriteResult record() is the `provider`.
+     * @throws ApiException
+     */
+    public function addTerminalProvider(string $terminalId, array $request, ?string $idempotencyKey = null): PhysicalPosWriteResult
+    {
+        $payload = $this->body($request, 'addTerminalProvider', self::SCHEMAS['addTerminalProvider'], ['vendorAccountId', 'merchantCode', 'terminalCode']);
+
+        return $this->keyedWrite('/terminals/' . PhysicalPosRequest::pathId($terminalId, 'terminalId') . '/providers', $payload, $idempotencyKey, 'provider', 201);
+    }
+
+    /**
+     * @param array<string,mixed> $request rowVersion, label? (null clears), status? (ACTIVE | DISABLED).
+     * @return array<string,mixed> The provider row.
+     * @throws ApiException
+     */
+    public function updateTerminalProvider(string $terminalProviderId, array $request): array
+    {
+        $payload = $this->body($request, 'updateTerminalProvider', self::SCHEMAS['updateTerminalProvider'], ['rowVersion']);
+
+        return self::record($this->write('PATCH', '/terminal-providers/' . PhysicalPosRequest::pathId($terminalProviderId, 'terminalProviderId'), $payload), 'provider');
+    }
+
+    /**
      * Links the terminal to a device (closing the previous link).
      *
      * @param array<string,mixed> $request rowVersion, deviceId, reasonCode.
@@ -742,6 +816,134 @@ final class PhysicalPosManagementClient
         return PhysicalPosRequest::data($this->write('POST', '/devices/' . PhysicalPosRequest::pathId($deviceId, 'deviceId') . '/activation-code/revoke', $payload));
     }
 
+    // ── End-of-day policy (account → store → device) ──────────────────────────
+    //
+    // A level's policy replaces the level above it entirely. set…() sends the
+    // full setting: mode (MANUAL | SCHEDULED | DEVICE_AUTO), scheduleTime?
+    // (HH:mm, SCHEDULED only), timeZone? (IANA, default Europe/Istanbul),
+    // scheduleDays? (MON … SUN; empty = every day), retryWindowMinutes?,
+    // retryIntervalMinutes?, offlineBehavior? (RETRY_IN_WINDOW |
+    // ALERT_IMMEDIATELY), overdueAlertHours?, expectedRowVersion?. clear…()
+    // resets the account to MANUAL or removes a store / device override.
+    // expectedRowVersion is the policy's rowVersion you read (409
+    // `physical_pos.version_conflict` when it changed); null = last write wins.
+    // Reads need `physical_pos:view`, writes `physical_pos:manage`. Each call
+    // returns the policy: scopeType, storeId, deviceId, active (false = no
+    // setting at this level), mode, scheduleTime, timeZone, scheduleDays,
+    // retryWindowMinutes, retryIntervalMinutes, offlineBehavior,
+    // overdueAlertHours, rowVersion, updatedAt.
+
+    /**
+     * @return array<string,mixed> The account-level policy.
+     * @throws ApiException
+     */
+    public function getAccountSettlementPolicy(): array
+    {
+        return self::record($this->read('/settlement-policy'), 'policy');
+    }
+
+    /**
+     * @param array<string,mixed> $request See the section note.
+     * @return array<string,mixed> The stored policy.
+     * @throws ConfigurationException
+     * @throws ApiException
+     */
+    public function setAccountSettlementPolicy(array $request): array
+    {
+        return $this->putPolicy('/settlement-policy', $request, 'setAccountSettlementPolicy');
+    }
+
+    /**
+     * Resets the account level to the default (MANUAL).
+     *
+     * @return array<string,mixed> The policy after the reset.
+     * @throws ConfigurationException
+     * @throws ApiException
+     */
+    public function clearAccountSettlementPolicy(?int $expectedRowVersion = null): array
+    {
+        return $this->clearPolicy('/settlement-policy', $expectedRowVersion);
+    }
+
+    /**
+     * @return array<string,mixed> The store-level policy (`active` false when the store inherits).
+     * @throws ApiException
+     */
+    public function getStoreSettlementPolicy(string $storeId): array
+    {
+        return self::record($this->read(self::storePolicyPath($storeId)), 'policy');
+    }
+
+    /**
+     * @param array<string,mixed> $request See the section note.
+     * @return array<string,mixed> The stored policy.
+     * @throws ConfigurationException
+     * @throws ApiException
+     */
+    public function setStoreSettlementPolicy(string $storeId, array $request): array
+    {
+        return $this->putPolicy(self::storePolicyPath($storeId), $request, 'setStoreSettlementPolicy');
+    }
+
+    /**
+     * Removes the store override (its devices inherit the account level).
+     *
+     * @return array<string,mixed>
+     * @throws ConfigurationException
+     * @throws ApiException
+     */
+    public function clearStoreSettlementPolicy(string $storeId, ?int $expectedRowVersion = null): array
+    {
+        return $this->clearPolicy(self::storePolicyPath($storeId), $expectedRowVersion);
+    }
+
+    /**
+     * @return array<string,mixed> The device-level policy (`active` false when the device inherits).
+     * @throws ApiException
+     */
+    public function getDeviceSettlementPolicy(string $deviceId): array
+    {
+        return self::record($this->read(self::devicePolicyPath($deviceId)), 'policy');
+    }
+
+    /**
+     * DEVICE_AUTO only on devices that report their end-of-day results.
+     *
+     * @param array<string,mixed> $request See the section note.
+     * @return array<string,mixed> The stored policy.
+     * @throws ConfigurationException
+     * @throws ApiException
+     */
+    public function setDeviceSettlementPolicy(string $deviceId, array $request): array
+    {
+        return $this->putPolicy(self::devicePolicyPath($deviceId), $request, 'setDeviceSettlementPolicy');
+    }
+
+    /**
+     * Removes the device override (it inherits its store / account policy).
+     *
+     * @return array<string,mixed>
+     * @throws ConfigurationException
+     * @throws ApiException
+     */
+    public function clearDeviceSettlementPolicy(string $deviceId, ?int $expectedRowVersion = null): array
+    {
+        return $this->clearPolicy(self::devicePolicyPath($deviceId), $expectedRowVersion);
+    }
+
+    /**
+     * The policy a device follows: deviceId, sourceScopeType (ACCOUNT | STORE |
+     * DEVICE), policy, serverSettlementSupported, deviceAutoSupported,
+     * nextScheduledAt, lastSettlementAt, overdue, scheduleWarning.
+     *
+     * @return array<string,mixed>
+     * @throws ApiException
+     */
+    public function getEffectiveSettlementPolicy(string $deviceId): array
+    {
+        return self::record($this->read(self::devicePolicyPath($deviceId) . '/effective'), 'effective');
+    }
+
     /**
      * Body field names each write accepts (`statusChange` = archive, restore,
      * close, device-link close, storage, retirement). Anything else is refused
@@ -760,6 +962,51 @@ final class PhysicalPosManagementClient
     }
 
     // ── Internals ─────────────────────────────────────────────────────────────
+
+    private static function storePolicyPath(string $storeId): string
+    {
+        return '/stores/' . PhysicalPosRequest::pathId($storeId, 'storeId') . '/settlement-policy';
+    }
+
+    private static function devicePolicyPath(string $deviceId): string
+    {
+        return '/devices/' . PhysicalPosRequest::pathId($deviceId, 'deviceId') . '/settlement-policy';
+    }
+
+    /**
+     * @param array<string,mixed> $request
+     * @return array<string,mixed>
+     */
+    private function putPolicy(string $path, array $request, string $operation): array
+    {
+        $payload = $this->body($request, $operation, self::SCHEMAS['setSettlementPolicy'], ['mode']);
+
+        return self::record($this->write('PUT', $path, $payload), 'policy');
+    }
+
+    /**
+     * `DELETE …/settlement-policy`, `expectedRowVersion` in the query (left out when null).
+     *
+     * @return array<string,mixed>
+     */
+    private function clearPolicy(string $path, ?int $expectedRowVersion): array
+    {
+        $options = ['stepUp' => true];
+        if ($expectedRowVersion !== null) {
+            $checked = PhysicalPosRequest::body(
+                ['expectedRowVersion' => $expectedRowVersion],
+                ['expectedRowVersion' => 'rowVersion'],
+                ['expectedRowVersion'],
+                'clearSettlementPolicy'
+            );
+            $options['query'] = $checked;
+        }
+        try {
+            return self::record($this->api->request('DELETE', self::BASE . $path, null, $options), 'policy');
+        } catch (ApiException $error) {
+            throw PhysicalPosRequest::mapError($error);
+        }
+    }
 
     private static function keyPath(string $deviceId, string $keyId): string
     {

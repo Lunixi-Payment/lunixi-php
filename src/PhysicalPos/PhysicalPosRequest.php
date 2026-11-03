@@ -730,6 +730,45 @@ final class PhysicalPosRequest
         return ['paymentId' => $paymentId, 'origin' => $origin];
     }
 
+    /** The category of an event type: `payment`, `fiscal_document`, `settlement` or `other`. */
+    public static function webhookCategory(string $type): string
+    {
+        if (strpos($type, 'physical_pos.payment.') === 0) {
+            return PhysicalPosWebhookEvent::CATEGORY_PAYMENT;
+        }
+        if (strpos($type, 'physical_pos.fiscal_document.') === 0) {
+            return PhysicalPosWebhookEvent::CATEGORY_FISCAL_DOCUMENT;
+        }
+        if (strpos($type, 'physical_pos.settlement.') === 0) {
+            return PhysicalPosWebhookEvent::CATEGORY_SETTLEMENT;
+        }
+
+        return PhysicalPosWebhookEvent::CATEGORY_OTHER;
+    }
+
+    /**
+     * The cashier of a payment event: `cashierId` and `cashierCode` when both
+     * are non-empty strings (other keys, e.g. a name, are dropped); null when
+     * there is no cashier.
+     *
+     * @param array<string,mixed> $data
+     * @return array{cashierId:string,cashierCode:string}|null
+     */
+    public static function webhookCashier(array $data): ?array
+    {
+        $cashier = $data['cashier'] ?? null;
+        if (!is_array($cashier)) {
+            return null;
+        }
+        $cashierId = $cashier['cashierId'] ?? null;
+        $cashierCode = $cashier['cashierCode'] ?? null;
+        if (!is_string($cashierId) || $cashierId === '' || !is_string($cashierCode) || $cashierCode === '') {
+            return null;
+        }
+
+        return ['cashierId' => $cashierId, 'cashierCode' => $cashierCode];
+    }
+
     /**
      * Whether a failed payment-write attempt leaves the outcome uncertain: no
      * HTTP answer (status 0, or a Throwable from the transport) or a 5xx that

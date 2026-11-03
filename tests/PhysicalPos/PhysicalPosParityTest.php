@@ -16,6 +16,7 @@ use Lunixi\Sdk\PhysicalPos\PhysicalPosClient;
 use Lunixi\Sdk\PhysicalPos\PhysicalPosEvents;
 use Lunixi\Sdk\PhysicalPos\PhysicalPosManagementClient;
 use Lunixi\Sdk\PhysicalPos\PhysicalPosRequest;
+use Lunixi\Sdk\PhysicalPos\PhysicalPosWebhookEvent;
 use Lunixi\Sdk\Tests\Support\FakeHttpClient;
 use PHPUnit\Framework\TestCase;
 
@@ -151,6 +152,22 @@ final class PhysicalPosParityTest extends TestCase
         }
     }
 
+    public function testWebhookCashierCases(): void
+    {
+        $cases = self::fixture()['webhookCashierCases'];
+        $this->assertGreaterThan(5, count($cases));
+        foreach ($cases as $case) {
+            $this->assertSame($case['cashier'], PhysicalPosRequest::webhookCashier($case['data']), $case['name']);
+        }
+    }
+
+    public function testWebhookCategoryCases(): void
+    {
+        foreach (self::fixture()['webhookCategoryCases'] as $case) {
+            $this->assertSame($case['category'], PhysicalPosRequest::webhookCategory($case['type']), $case['type']);
+        }
+    }
+
     public function testNotStartedCodes(): void
     {
         $this->assertSame(self::sorted(self::fixture()['notStartedCodes']), self::sorted(PhysicalPosRequest::NOT_STARTED_CODES));
@@ -170,6 +187,7 @@ final class PhysicalPosParityTest extends TestCase
             'createStore', 'updateStore', 'statusChange', 'createRegister', 'updateRegister', 'createTerminal', 'updateTerminal',
             'addTerminalAcquirer', 'updateTerminalAcquirer', 'changeTerminalDevice', 'createDevice', 'updateDevice', 'assignDevice',
             'changeDeviceLifecycle', 'revokeDeviceKey', 'revertDeviceEnrollment', 'revokeActivationCode',
+            'addTerminalProvider', 'updateTerminalProvider', 'setSettlementPolicy',
         ] as $name) {
             $this->assertArrayHasKey($name, $management, $name);
             $this->assertSame($expected[$name], $management[$name], $name);

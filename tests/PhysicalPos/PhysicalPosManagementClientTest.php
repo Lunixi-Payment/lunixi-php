@@ -23,7 +23,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * Contract source: nest-payment-gateway @ 8d28433e2 (origin/main)
- * apps/api-gateway/src/physical-pos/{stores,terminals,devices,catalog,overview}/** (API controllers, DTOs, mappers,
+ * apps/api-gateway/src/physical-pos/{stores,terminals,devices,settlements,catalog,overview}/** (API controllers, DTOs, mappers,
  * services). Ids and values below are synthetic.
  */
 final class PhysicalPosManagementClientTest extends TestCase
@@ -37,6 +37,8 @@ final class PhysicalPosManagementClientTest extends TestCase
     private const DEVICE_ID = '55555555-5555-4555-8555-555555555555';
     private const KEY = 'pos-mgmt-key-0001';
     private const DEVICE_KEY_ID = 'pdk_AAAAAAAAAAAAAAAAAAAAAAAA';
+    private const PROVIDER_ROW_ID = '66666666-6666-4666-8666-666666666666';
+    private const VENDOR_ACCOUNT_ID = '77777777-7777-4777-8777-777777777777';
     private const UUID_V4 = '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/';
 
     private string $publicKey = '';
@@ -421,6 +423,126 @@ final class PhysicalPosManagementClientTest extends TestCase
         }
     }
 
+    // ── Terminal provider rows ──────────────────────────────────────────────
+
+    private static function providerJson(array $overrides = []): array
+    {
+        return array_merge([
+            'id' => self::PROVIDER_ROW_ID, 'terminalId' => self::TERMINAL_ID, 'environment' => 'LIVE', 'providerCode' => 'METROPOL',
+            'vendorAccountId' => self::VENDOR_ACCOUNT_ID, 'merchantCode' => '1000000001', 'terminalCode' => '2000000002',
+            'productCode' => '3', 'label' => null, 'providerStatus' => 'ACTIVE', 'rowVersion' => 1,
+            'createdAt' => '2026-11-01T09:00:00.000Z', 'updatedAt' => '2026-11-01T09:00:00.000Z',
+        ], $overrides);
+    }
+
+    public function testTerminalProviderRoutes(): void
+    {
+        [$client, $http] = $this->make();
+        $http->pushJson(200, self::page([self::providerJson()], false, null, 1));
+        $http->pushJson(201, self::envelope(['provider' => self::providerJson(), 'replayed' => false], 201));
+        $http->pushJson(200, self::envelope(['provider' => self::providerJson(), 'replayed' => true]));
+        $http->pushJson(200, self::envelope(['provider' => self::providerJson(['providerStatus' => 'DISABLED', 'rowVersion' => 2])]));
+
+        $page = $client->listTerminalProviders(self::TERMINAL_ID, ['limit' => 10, 'includeTotal' => true]);
+        $this->assertSame(self::BASE . '/terminals/' . self::TERMINAL_ID . '/providers?limit=10&includeTotal=true', self::target($http->lastCall()));
+        $this->assertSame('METROPOL', $page->items()[0]['providerCode']);
+
+        $request = [
+            'vendorAccountId' => self::VENDOR_ACCOUNT_ID, 'merchantCode' => '1000000001', 'terminalCode' => '2000000002',
+            'productCode' => '3', 'label' => 'Meal',
+        ];
+        $added = $client->addTerminalProvider(self::TERMINAL_ID, $request, self::KEY);
+        $this->assertSame('POST', $http->lastCall()['method']);
+        $this->assertSame(self::BASE . '/terminals/' . self::TERMINAL_ID . '/providers', self::target($http->lastCall()));
+        $this->assertSame($request, self::bodyOf($http->lastCall()));
+        $this->assertSame(self::KEY, $http->lastCall()['headers']['Idempotency-Key']);
+        $this->assertSame(201, $added->statusCode());
+        $this->assertSame(self::PROVIDER_ROW_ID, $added->record()['id']);
+
+        $replay = $client->addTerminalProvider(self::TERMINAL_ID, [
+            'vendorAccountId' => self::VENDOR_ACCOUNT_ID, 'merchantCode' => '1000000001', 'terminalCode' => '2000000002',
+        ]);
+        $this->assertMatchesRegularExpression(self::UUID_V4, $http->lastCall()['headers']['Idempotency-Key']);
+        $this->assertTrue($replay->replayed());
+        $this->assertSame(200, $replay->statusCode());
+
+        $updated = $client->updateTerminalProvider(self::PROVIDER_ROW_ID, ['rowVersion' => 1, 'label' => null, 'status' => 'DISABLED']);
+        $this->assertSame('PATCH', $http->lastCall()['method']);
+        $this->assertSame(self::BASE . '/terminal-providers/' . self::PROVIDER_ROW_ID, self::target($http->lastCall()));
+        $this->assertSame(['rowVersion' => 1, 'label' => null, 'status' => 'DISABLED'], self::bodyOf($http->lastCall()));
+        $this->assertArrayNotHasKey('Idempotency-Key', $http->lastCall()['headers']);
+        $this->assertSame('DISABLED', $updated['providerStatus']);
+
+        foreach ($http->calls as $call) {
+            $this->assertSame('OK', $this->verdict($call));
+        }
+    }
+
+    // ── End-of-day policy ───────────────────────────────────────────────────
+
+    private static function policyJson(array $overrides = []): array
+    {
+        return array_merge([
+            'scopeType' => 'ACCOUNT', 'storeId' => null, 'deviceId' => null, 'active' => true, 'mode' => 'SCHEDULED',
+            'scheduleTime' => '23:30', 'timeZone' => 'Europe/Istanbul', 'scheduleDays' => [], 'retryWindowMinutes' => 120,
+            'retryIntervalMinutes' => 15, 'offlineBehavior' => 'RETRY_IN_WINDOW', 'overdueAlertHours' => 26, 'rowVersion' => 2,
+            'updatedAt' => '2026-11-03T09:00:00.000Z',
+        ], $overrides);
+    }
+
+    public function testSettlementPolicyRoutes(): void
+    {
+        [$client, $http] = $this->make();
+        for ($i = 0; $i < 9; $i++) {
+            $http->pushJson(200, self::envelope(['policy' => self::policyJson()]));
+        }
+        $http->pushJson(200, self::envelope(['effective' => [
+            'deviceId' => self::DEVICE_ID, 'sourceScopeType' => 'STORE', 'policy' => self::policyJson(['scopeType' => 'STORE', 'storeId' => self::STORE_ID]),
+            'serverSettlementSupported' => true, 'deviceAutoSupported' => false, 'nextScheduledAt' => '2026-11-03T20:30:00.000Z',
+            'lastSettlementAt' => null, 'overdue' => false, 'scheduleWarning' => null,
+        ]]));
+        $scheduled = [
+            'mode' => 'SCHEDULED', 'scheduleTime' => '23:30', 'timeZone' => 'Europe/Istanbul', 'scheduleDays' => ['MON', 'FRI'],
+            'retryWindowMinutes' => 120, 'retryIntervalMinutes' => 15, 'offlineBehavior' => 'ALERT_IMMEDIATELY',
+            'overdueAlertHours' => 26, 'expectedRowVersion' => 1,
+        ];
+
+        $this->assertSame('SCHEDULED', $client->getAccountSettlementPolicy()['mode']);
+        $client->setAccountSettlementPolicy($scheduled);
+        $client->clearAccountSettlementPolicy();
+        $client->getStoreSettlementPolicy(self::STORE_ID);
+        $client->setStoreSettlementPolicy(self::STORE_ID, ['mode' => 'MANUAL']);
+        $client->clearStoreSettlementPolicy(self::STORE_ID, 3);
+        $client->getDeviceSettlementPolicy(self::DEVICE_ID);
+        $client->setDeviceSettlementPolicy(self::DEVICE_ID, ['mode' => 'DEVICE_AUTO', 'overdueAlertHours' => 30]);
+        $this->assertSame(2, $client->clearDeviceSettlementPolicy(self::DEVICE_ID, 4)['rowVersion']);
+        $effective = $client->getEffectiveSettlementPolicy(self::DEVICE_ID);
+        $this->assertSame('STORE', $effective['sourceScopeType']);
+        $this->assertSame(self::STORE_ID, $effective['policy']['storeId']);
+
+        $routes = array_map(static fn (array $call): array => [$call['method'], self::target($call)], $http->calls);
+        $this->assertSame([
+            ['GET', self::BASE . '/settlement-policy'],
+            ['PUT', self::BASE . '/settlement-policy'],
+            ['DELETE', self::BASE . '/settlement-policy'],
+            ['GET', self::BASE . '/stores/' . self::STORE_ID . '/settlement-policy'],
+            ['PUT', self::BASE . '/stores/' . self::STORE_ID . '/settlement-policy'],
+            ['DELETE', self::BASE . '/stores/' . self::STORE_ID . '/settlement-policy?expectedRowVersion=3'],
+            ['GET', self::BASE . '/devices/' . self::DEVICE_ID . '/settlement-policy'],
+            ['PUT', self::BASE . '/devices/' . self::DEVICE_ID . '/settlement-policy'],
+            ['DELETE', self::BASE . '/devices/' . self::DEVICE_ID . '/settlement-policy?expectedRowVersion=4'],
+            ['GET', self::BASE . '/devices/' . self::DEVICE_ID . '/settlement-policy/effective'],
+        ], $routes);
+        $this->assertSame($scheduled, self::bodyOf($http->calls[1]));
+        $this->assertSame(['mode' => 'MANUAL'], self::bodyOf($http->calls[4]));
+        $this->assertSame(['mode' => 'DEVICE_AUTO', 'overdueAlertHours' => 30], self::bodyOf($http->calls[7]));
+        $this->assertNull(self::bodyOf($http->calls[2]));
+        foreach ($http->calls as $call) {
+            $this->assertArrayNotHasKey('Idempotency-Key', $call['headers']);
+            $this->assertSame('OK', $this->verdict($call));
+        }
+    }
+
     public function testIteratorFollowsTheCursor(): void
     {
         [$client, $http] = $this->make();
@@ -471,6 +593,23 @@ final class PhysicalPosManagementClientTest extends TestCase
             'revert with rowVersion' => [static fn (PhysicalPosManagementClient $c) => $c->revertDeviceEnrollment(self::DEVICE_ID, self::DEVICE_KEY_ID, ['reasonCode' => 'OTHER', 'rowVersion' => 1])],
             'activation code without reason' => [static fn (PhysicalPosManagementClient $c) => $c->revokeActivationCode(self::DEVICE_ID, [])],
             'key list filter' => [static fn (PhysicalPosManagementClient $c) => $c->listDeviceKeys(self::DEVICE_ID, ['includeTotal' => true])],
+            'provider without terminalCode' => [static fn (PhysicalPosManagementClient $c) => $c->addTerminalProvider(self::TERMINAL_ID, [
+                'vendorAccountId' => self::VENDOR_ACCOUNT_ID, 'merchantCode' => '1000000001',
+            ])],
+            'provider code in body' => [static fn (PhysicalPosManagementClient $c) => $c->addTerminalProvider(self::TERMINAL_ID, [
+                'vendorAccountId' => self::VENDOR_ACCOUNT_ID, 'merchantCode' => '1', 'terminalCode' => '2', 'providerCode' => 'METROPOL',
+            ])],
+            'provider update without rowVersion' => [static fn (PhysicalPosManagementClient $c) => $c->updateTerminalProvider(self::PROVIDER_ROW_ID, ['label' => 'x'])],
+            'empty provider id' => [static fn (PhysicalPosManagementClient $c) => $c->updateTerminalProvider('', ['rowVersion' => 1])],
+            'provider list filter' => [static fn (PhysicalPosManagementClient $c) => $c->listTerminalProviders(self::TERMINAL_ID, ['status' => 'ACTIVE'])],
+            'policy without mode' => [static fn (PhysicalPosManagementClient $c) => $c->setAccountSettlementPolicy([])],
+            'policy environment' => [static fn (PhysicalPosManagementClient $c) => $c->setAccountSettlementPolicy(['mode' => 'MANUAL', 'environment' => 'LIVE'])],
+            'policy minutes as string' => [static fn (PhysicalPosManagementClient $c) => $c->setStoreSettlementPolicy(self::STORE_ID, ['mode' => 'SCHEDULED', 'retryWindowMinutes' => '120'])],
+            'policy days not a list' => [static fn (PhysicalPosManagementClient $c) => $c->setDeviceSettlementPolicy(self::DEVICE_ID, ['mode' => 'SCHEDULED', 'scheduleDays' => 'MON'])],
+            'policy expectedRowVersion 0' => [static fn (PhysicalPosManagementClient $c) => $c->setDeviceSettlementPolicy(self::DEVICE_ID, ['mode' => 'MANUAL', 'expectedRowVersion' => 0])],
+            'clear expectedRowVersion 0' => [static fn (PhysicalPosManagementClient $c) => $c->clearStoreSettlementPolicy(self::STORE_ID, 0)],
+            'clear with empty device id' => [static fn (PhysicalPosManagementClient $c) => $c->clearDeviceSettlementPolicy('', 1)],
+            'effective with dot-dot id' => [static fn (PhysicalPosManagementClient $c) => $c->getEffectiveSettlementPolicy('..')],
         ];
     }
 

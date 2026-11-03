@@ -19,7 +19,7 @@ use stdClass;
 
 /**
  * Physical POS — card payments on your POS devices, with their reversals,
- * transactions, reports and end-of-day results (`/api/v1/physical-pos`,
+ * transactions, reports, end-of-day runs and results (`/api/v1/physical-pos`,
  * product PHYSICAL_POS).
  *
  *   createPayment                          POST /api/v1/physical-pos/payments                       (202, Idempotency-Key)
@@ -33,6 +33,9 @@ use stdClass;
  *   getSalesSummary                        GET  …/reports/sales-summary
  *   getTaxSummary                          GET  …/reports/tax-summary
  *   listSettlements / iterateSettlements   GET  …/settlements
+ *   startSettlement                        POST …/devices/{deviceId}/settlement                     (202, Idempotency-Key)
+ *   listSettlementRuns / iterate…          GET  …/settlement-runs
+ *   getSettlementRun                       GET  …/settlement-runs/{runId}
  *
  * Every call is signed (step-up). Scopes: writes need `physical_pos:payments`;
  * reads accept `physical_pos:view` or `physical_pos:payments`. The key decides
@@ -83,7 +86,8 @@ final class PhysicalPosClient
     /** Fields of createPayment(). There is no card field. */
     public const PAYMENT_FIELDS = [
         'operation', 'target', 'amountMinor', 'currency', 'installmentCount', 'instrument', 'merchantReference',
-        'allowDuplicateReference', 'startTimeoutSeconds', 'terminalAcquirerId', 'items',
+        'allowDuplicateReference', 'startTimeoutSeconds', 'terminalAcquirerId', 'items', 'interaction',
+        'terminalProviderId',
     ];
 
     /** Fields of createReversal(). */
@@ -102,6 +106,9 @@ final class PhysicalPosClient
         'getSalesSummary' => ['dateFrom', 'dateTo', 'deviceId', 'storeId', 'groupBy'],
         'getTaxSummary' => ['dateFrom', 'dateTo', 'deviceId', 'storeId'],
         'listSettlements' => ['limit', 'cursor', 'deviceId', 'lineStatus', 'createdFrom', 'createdTo'],
+        'listSettlementRuns' => [
+            'limit', 'cursor', 'includeTotal', 'deviceId', 'source', 'runStatus', 'createdFrom', 'createdTo',
+        ],
     ];
 
     private const BASE = '/api/v1/physical-pos';
@@ -130,8 +137,12 @@ final class PhysicalPosClient
      *
      * @param array<string,mixed> $request operation, target (`['deviceId' => …]` |
      *   `['vendorCode' => …, 'serialNumber' => …]` | `['externalRef' => …]`), amountMinor (canonical minor-unit string),
-     *   currency, installmentCount?, instrument?, merchantReference?, allowDuplicateReference?,
-     *   startTimeoutSeconds?, terminalAcquirerId?, items? (SALE only; non-empty).
+     *   currency, installmentCount?, instrument? (CARD by default; MEAL_CARD for a provider-collected meal card),
+     *   merchantReference?, allowDuplicateReference?, startTimeoutSeconds?, terminalAcquirerId?, items? (SALE only;
+     *   non-empty), interaction? (provider-collected cards only, required there: INSTRUMENT_READ — the device reads the
+     *   card, CODE_DISPLAY — the device shows the provider's QR / short code; leave it out for CARD),
+     *   terminalProviderId? (provider row id from PhysicalPosManagementClient::listTerminalProviders(); left out, the
+     *   terminal's single active row for the method is used).
      * @param string|null $idempotencyKey REQUIRED (null is refused before sending): your stored key for this
      *   payment, sent as given (8–200 printable ASCII, no spaces; never trimmed). Repeat an unknown outcome with it.
      * @throws ConfigurationException
@@ -350,6 +361,76 @@ final class PhysicalPosClient
     }
 
     /**
+     * Starts end-of-day (batch close) on a device (`physical_pos:payments`).
+     * End-of-day cannot be undone. The answer means "accepted": the device
+     * reports the result later — follow it with getSettlementRun() or
+     * listSettlements(). New run → 202; the same key → 200, `replayed: true`.
+     * A TEST key is refused with 403 `physical_pos.environment.test_key_read_only`.
+     *
+     * @param string|null $idempotencyKey Sent as given; null generates one (returned by idempotencyKey()).
+     *   After an unknown outcome call again with the same key.
+     * @return PhysicalPosWriteResult record() is the `run`.
+     * @throws ConfigurationException
+     * @throws PhysicalPosRateLimitException
+     * @throws ApiException
+     */
+    public function startSettlement(string $deviceId, ?string $idempotencyKey = null): PhysicalPosWriteResult
+    {
+        $path = '/devices/' . PhysicalPosRequest::pathId($deviceId, 'deviceId') . '/settlement';
+        $key = PhysicalPosRequest::idempotencyKey($idempotencyKey);
+        try {
+            $response = $this->api->request('POST', self::BASE . $path, new stdClass(), ['stepUp' => true, 'idempotencyKey' => $key]);
+        } catch (ApiException $error) {
+            throw PhysicalPosRequest::mapError($error);
+        }
+        $data = PhysicalPosRequest::data($response);
+        $replayed = ($data['replayed'] ?? false) === true;
+
+        return new PhysicalPosWriteResult($data, 'run', PhysicalPosRequest::statusCode($response, $replayed ? 200 : 202), $key);
+    }
+
+    /**
+     * End-of-day runs started by Lunixi (manual and scheduled), newest first.
+     * Each run: runId, deviceId, environment, source, runStatus, reason,
+     * businessDate, commandId, commandStatus, deliveryPath, resultState,
+     * attemptCount, nextAttemptAt, windowEndsAt, resultLineCount, completedAt,
+     * createdAt, updatedAt.
+     *
+     * @param array<string,mixed> $filters limit, cursor, includeTotal, deviceId, source (MANUAL_API | MANUAL_PANEL |
+     *   SCHEDULED), runStatus (PENDING | STARTED | SKIPPED | FAILED), createdFrom, createdTo (run creation time).
+     * @return PhysicalPosPage<array<string,mixed>>
+     * @throws ApiException
+     */
+    public function listSettlementRuns(array $filters = []): PhysicalPosPage
+    {
+        return new PhysicalPosPage(
+            $this->read('/settlement-runs', PhysicalPosRequest::query($filters, self::FILTERS['listSettlementRuns'], 'listSettlementRuns'))
+        );
+    }
+
+    /**
+     * @param array<string,mixed> $filters Same as listSettlementRuns().
+     * @return Generator<int,array<string,mixed>>
+     */
+    public function iterateSettlementRuns(array $filters = []): Generator
+    {
+        return PhysicalPosRequest::paginate(fn (array $page): PhysicalPosPage => $this->listSettlementRuns($page), $filters);
+    }
+
+    /**
+     * One end-of-day run with its command status and result state.
+     *
+     * @return array<string,mixed> The run.
+     * @throws ApiException
+     */
+    public function getSettlementRun(string $runId): array
+    {
+        $run = PhysicalPosRequest::data($this->read('/settlement-runs/' . PhysicalPosRequest::pathId($runId, 'runId')))['run'] ?? null;
+
+        return is_array($run) ? $run : [];
+    }
+
+    /**
      * Verifies a delivered `physical_pos.*` webhook with WebhookVerifier and
      * reads it. There is no way to read an unverified body: the raw body,
      * the request headers and your endpoint secret are required, and any
@@ -516,6 +597,8 @@ final class PhysicalPosClient
             'allowDuplicateReference' => 'bool',
             'startTimeoutSeconds' => '?int',
             'terminalAcquirerId' => '?string',
+            'interaction' => '?string',
+            'terminalProviderId' => '?string',
             'items' => ['list' => [
                 'fields' => [
                     'lineNo' => 'int',

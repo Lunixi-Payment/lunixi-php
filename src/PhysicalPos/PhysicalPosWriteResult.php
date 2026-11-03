@@ -7,12 +7,13 @@ namespace Lunixi\Sdk\PhysicalPos;
 /**
  * Answer of a management write that takes an Idempotency-Key (create store,
  * register, terminal, bank row, device; close a device link; move a device to
- * storage; retire a device).
+ * storage; retire a device; add a terminal provider row; start end-of-day).
  *
  * {@see record()} is the main record (`store`, `register`, `terminal`,
- * `acquirer` or `device`); {@see data()} is the whole answer (e.g. `link`,
- * `closedAssignment`). Creates answer 201, a replay of the same key and body
- * 200 with `replayed: true`.
+ * `acquirer`, `provider`, `device` or the end-of-day `run`); {@see data()} is
+ * the whole answer (e.g. `link`, `closedAssignment`). Creates answer 201
+ * (end-of-day start 202), a replay of the same key and body 200 with
+ * `replayed: true`.
  */
 final class PhysicalPosWriteResult
 {

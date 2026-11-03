@@ -2,6 +2,15 @@
 
 All notable changes to `lunixi/php-sdk`.
 
+## 1.2.0 — 2026-11-03
+
+- Physical POS end-of-day webhooks: `PhysicalPosEvents::SETTLEMENT_COMPLETED`, `SETTLEMENT_FAILED`, `SETTLEMENT_OVERDUE`, `SETTLEMENT_SKIPPED` (also `SETTLEMENT_EVENTS`, and in `ALL`); `PhysicalPosWebhookEvent` reads them with category `settlement` (`CATEGORY_SETTLEMENT`, `isSettlementEvent()`); they carry no `historySeq`.
+- Physical POS payment webhooks: `PhysicalPosWebhookEvent::cashier()` returns the optional `{cashierId, cashierCode}` of a payment started from a device cashier session (null otherwise; the key is absent then).
+- Physical POS end-of-day on `PhysicalPosClient`: `startSettlement($deviceId, ?$idempotencyKey)` (`POST /devices/{deviceId}/settlement`, `physical_pos:payments`; empty JSON object, `Idempotency-Key` sent — generated when null; `PhysicalPosWriteResult` with the `run`, 202 new / 200 replay), `listSettlementRuns()` / `iterateSettlementRuns()` (`GET /settlement-runs`; filters `deviceId`, `source`, `runStatus`, `createdFrom`, `createdTo`, `includeTotal`) and `getSettlementRun($runId)`.
+- Physical POS end-of-day policy on `PhysicalPosManagementClient`: `get…`, `set…` and `clear…SettlementPolicy()` for the account, a store and a device (`GET` / `PUT` / `DELETE …/settlement-policy`; `clear…` takes an optional `?int $expectedRowVersion`, sent as a query parameter) and `getEffectiveSettlementPolicy($deviceId)`.
+- Physical POS terminal payment-provider rows on `PhysicalPosManagementClient`: `listTerminalProviders()` / `iterateTerminalProviders()`, `addTerminalProvider()` (`Idempotency-Key`; 201 / 200) and `updateTerminalProvider()` (`PATCH /terminal-providers/{terminalProviderId}`).
+- `createPayment()` accepts `interaction` (`INSTRUMENT_READ` | `CODE_DISPLAY`) and `terminalProviderId` for provider-collected cards such as `instrument` `MEAL_CARD`.
+
 ## 1.1.0 — 2026-11-03
 
 - Physical POS device identity on `PhysicalPosManagementClient`: `listDeviceKeys()` / `iterateDeviceKeys()` (`GET /devices/{deviceId}/keys`, `physical_pos:view`), `revokeDeviceKey()`, `revertDeviceEnrollment()` and `revokeActivationCode()` (`physical_pos:identity`; no `Idempotency-Key`). Key ids are `pdk_…`, not UUIDs. Activation codes are not issued with an API key (panel only).

@@ -50,6 +50,8 @@ final class PhysicalPosClientTest extends TestCase
     private const CHILD_ID = '0192f3a1-0000-7000-8000-000000000002';
     private const DEVICE_ID = '3f0e8d1c-2a90-4c55-9a51-7b0c6a1e2f8d';
     private const KEY = 'pos-test-key-0001';
+    private const RUN_ID = '0192f3a1-0000-7000-8000-0000000000e1';
+    private const TERMINAL_PROVIDER_ID = '0192f3a1-0000-7000-8000-0000000000f1';
     private const UUID_V4 = '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/';
 
     private string $publicKey = '';
@@ -587,6 +589,33 @@ final class PhysicalPosClientTest extends TestCase
         ], self::bodyOf($http->lastCall()));
     }
 
+    public function testMealCardPaymentSendsInteractionAndProviderRow(): void
+    {
+        [$client, $http] = $this->make();
+        $http->pushJson(202, self::envelope(['payment' => self::paymentJson(['instrument' => 'MEAL_CARD']), 'replayed' => false], 202));
+        $http->pushJson(202, self::envelope(['payment' => self::paymentJson(['instrument' => 'MEAL_CARD']), 'replayed' => false], 202));
+        $request = [
+            'operation' => 'SALE', 'target' => ['deviceId' => self::DEVICE_ID], 'amountMinor' => '4500', 'currency' => 'TRY',
+            'instrument' => 'MEAL_CARD', 'interaction' => 'CODE_DISPLAY', 'terminalProviderId' => self::TERMINAL_PROVIDER_ID,
+        ];
+
+        $result = $client->createPayment($request, self::KEY);
+        $this->assertSame($request, self::bodyOf($http->lastCall()));
+        $this->assertSame('MEAL_CARD', $result->payment()->instrument());
+
+        $client->createPayment(array_merge($request, ['interaction' => null, 'terminalProviderId' => null]), self::KEY);
+        $this->assertSame(array_merge($request, ['interaction' => null, 'terminalProviderId' => null]), self::bodyOf($http->lastCall()));
+
+        foreach ([['interaction' => 7], ['providerCode' => 'METROPOL']] as $bad) {
+            try {
+                $client->createPayment(array_merge($request, $bad), self::KEY);
+                $this->fail('expected ConfigurationException');
+            } catch (ConfigurationException $error) {
+                $this->assertSame(2, $http->callCount());
+            }
+        }
+    }
+
     // ── Reversal, cancel ────────────────────────────────────────────────────
 
     public function testItemBasedRefundCreatesAChild(): void
@@ -890,6 +919,86 @@ final class PhysicalPosClientTest extends TestCase
         $this->assertSame('Till 1', $line->deviceName());
     }
 
+    // ── End-of-day runs ─────────────────────────────────────────────────────
+
+    private static function runJson(array $overrides = []): array
+    {
+        return array_merge([
+            'runId' => self::RUN_ID, 'deviceId' => self::DEVICE_ID, 'environment' => 'LIVE', 'source' => 'MANUAL_API',
+            'runStatus' => 'PENDING', 'reason' => null, 'businessDate' => '2026-11-03', 'commandId' => null, 'commandStatus' => null,
+            'deliveryPath' => null, 'resultState' => null, 'attemptCount' => 0, 'nextAttemptAt' => null, 'windowEndsAt' => null,
+            'resultLineCount' => 0, 'completedAt' => null, 'createdAt' => '2026-11-03T18:00:00.000Z', 'updatedAt' => '2026-11-03T18:00:00.000Z',
+        ], $overrides);
+    }
+
+    public function testStartSettlementSendsAnEmptyObjectWithAKeyAnd202(): void
+    {
+        [$client, $http] = $this->make();
+        $http->pushJson(202, ['status' => 'success', 'data' => ['run' => self::runJson(), 'replayed' => false]]);
+        $http->pushJson(200, ['status' => 'success', 'data' => ['run' => self::runJson(), 'replayed' => true]]);
+
+        $started = $client->startSettlement(self::DEVICE_ID, self::KEY);
+        $call = $http->lastCall();
+        $this->assertSame('POST', $call['method']);
+        $this->assertSame(self::BASE . '/devices/' . self::DEVICE_ID . '/settlement', self::target($call));
+        $this->assertSame('{}', $call['body']);
+        $this->assertSame(self::KEY, $call['headers']['Idempotency-Key']);
+        $this->assertSame('OK', $this->verdict($call));
+        $this->assertSame(202, $started->statusCode());
+        $this->assertFalse($started->replayed());
+        $this->assertSame(self::RUN_ID, $started->record()['runId']);
+        $this->assertSame(self::KEY, $started->idempotencyKey());
+
+        $again = $client->startSettlement(self::DEVICE_ID);
+        $this->assertMatchesRegularExpression(self::UUID_V4, $http->lastCall()['headers']['Idempotency-Key']);
+        $this->assertSame($http->lastCall()['headers']['Idempotency-Key'], $again->idempotencyKey());
+        $this->assertSame(200, $again->statusCode());
+        $this->assertTrue($again->replayed());
+
+        foreach ([static fn () => $client->startSettlement('', self::KEY), static fn () => $client->startSettlement(self::DEVICE_ID, 'short')] as $bad) {
+            try {
+                $bad();
+                $this->fail('expected ConfigurationException');
+            } catch (ConfigurationException $error) {
+                $this->assertSame(2, $http->callCount());
+            }
+        }
+    }
+
+    public function testSettlementRunsListIterateAndRead(): void
+    {
+        [$client, $http] = $this->make();
+        $http->pushJson(200, self::page([self::runJson()], true, 'r1'));
+        $http->pushJson(200, self::page([self::runJson(['runId' => 'r2'])]));
+        $http->pushJson(200, self::envelope(['run' => self::runJson(['runStatus' => 'STARTED'])]));
+
+        $ids = [];
+        foreach ($client->iterateSettlementRuns([
+            'limit' => 10, 'deviceId' => self::DEVICE_ID, 'source' => 'SCHEDULED', 'runStatus' => 'FAILED',
+            'createdFrom' => '2026-11-01T00:00:00.000Z', 'includeTotal' => true,
+        ]) as $run) {
+            $ids[] = $run['runId'];
+        }
+        $this->assertSame([self::RUN_ID, 'r2'], $ids);
+        $this->assertSame(self::BASE . '/settlement-runs', explode('?', self::target($http->calls[0]))[0]);
+        $this->assertSame([
+            'limit' => '10', 'includeTotal' => 'true', 'deviceId' => self::DEVICE_ID, 'source' => 'SCHEDULED', 'runStatus' => 'FAILED',
+            'createdFrom' => '2026-11-01T00:00:00.000Z',
+        ], self::queryOf($http->calls[0]));
+        $this->assertSame('r1', self::queryOf($http->calls[1])['cursor']);
+
+        $run = $client->getSettlementRun(self::RUN_ID);
+        $this->assertSame(self::BASE . '/settlement-runs/' . self::RUN_ID, self::target($http->lastCall()));
+        $this->assertSame('STARTED', $run['runStatus']);
+        foreach ($http->calls as $call) {
+            $this->assertSame('GET', $call['method']);
+            $this->assertArrayNotHasKey('Idempotency-Key', $call['headers']);
+        }
+
+        $this->expectException(ConfigurationException::class);
+        $client->listSettlementRuns(['lineStatus' => 'MATCHED']);
+    }
+
     public function testReadsAreSignedAndNeverCarryAKey(): void
     {
         [$client, $http] = $this->make();
@@ -963,6 +1072,56 @@ final class PhysicalPosClientTest extends TestCase
         $this->assertSame(self::PAYMENT_ID, $pos->paymentId());
         $this->assertSame('4500', $pos->data()['amountMinor'], 'webhook amounts are strings');
         $this->assertArrayNotHasKey('authCode', $pos->data()['tender']);
+        $this->assertNull($pos->cashier(), 'no cashier session: the key is absent');
+        $this->assertFalse($pos->isSettlementEvent());
+    }
+
+    public function testPaymentEventFromACashierSessionCarriesTheCashier(): void
+    {
+        $eventId = 'evt_pos_cashier';
+        [$body, $headers] = self::signedDelivery([
+            'id' => $eventId, 'type' => PhysicalPosEvents::PAYMENT_APPROVED, 'environment' => 'LIVE',
+            'data' => array_merge(self::webhookPayload(), ['cashier' => ['cashierId' => 'cashier_1', 'cashierCode' => 'K01']]),
+        ], $eventId);
+
+        $pos = PhysicalPosClient::parseWebhookEvent($body, $headers, self::WEBHOOK_SECRET);
+
+        $this->assertSame(['cashierId' => 'cashier_1', 'cashierCode' => 'K01'], $pos->cashier());
+    }
+
+    public function testEndOfDayWebhooksAreReadAsSettlementEvents(): void
+    {
+        $totals = ['saleCount' => 42, 'saleMinor' => '1284050', 'refundCount' => 1, 'refundMinor' => '15000', 'voidCount' => 0, 'voidMinor' => '0'];
+        $eventId = 'evt_pos_settlement_1';
+        [$body, $headers] = self::signedDelivery([
+            'id' => $eventId, 'type' => PhysicalPosEvents::SETTLEMENT_COMPLETED, 'environment' => 'LIVE',
+            'data' => [
+                'settlementId' => 'set_1', 'runId' => 'run_1', 'deviceId' => self::DEVICE_ID, 'source' => 'MANUAL_API',
+                'late' => false, 'periodFrom' => '2026-11-02T20:31:12.004Z', 'periodTo' => '2026-11-03T20:15:40.220Z',
+                'deviceClosedAt' => null, 'recordedAt' => '2026-11-03T20:15:41.307Z', 'lineCount' => 1,
+                'mismatchedLineCount' => 0, 'unmappedLineCount' => 0,
+                'lines' => [['lineNo' => 1, 'acquirerCode' => 'BANK1', 'currency' => 'TRY', 'lineStatus' => 'MATCHED',
+                    'reported' => $totals, 'system' => $totals]],
+            ],
+        ], $eventId);
+        $completed = PhysicalPosClient::parseWebhookEvent($body, $headers, self::WEBHOOK_SECRET);
+        $this->assertSame(PhysicalPosWebhookEvent::CATEGORY_SETTLEMENT, $completed->category());
+        $this->assertTrue($completed->isSettlementEvent());
+        $this->assertFalse($completed->isPaymentEvent());
+        $this->assertNull($completed->historySeq());
+        $this->assertSame('1284050', $completed->data()['lines'][0]['reported']['saleMinor']);
+
+        $eventId = 'evt_pos_settlement_2';
+        [$body, $headers] = self::signedDelivery([
+            'id' => $eventId, 'type' => PhysicalPosEvents::SETTLEMENT_SKIPPED,
+            'payloadJson' => (string) json_encode([
+                'runId' => 'run_2', 'deviceId' => self::DEVICE_ID, 'businessDate' => '2026-11-03',
+                'reason' => 'SETTLEMENT_UNSUPPORTED', 'skippedAt' => '2026-11-03T20:30:01.220Z',
+            ]),
+        ], $eventId);
+        $skipped = PhysicalPosClient::parseWebhookEvent($body, $headers, self::WEBHOOK_SECRET);
+        $this->assertSame('SETTLEMENT_UNSUPPORTED', $skipped->data()['reason']);
+        $this->assertSame(PhysicalPosWebhookEvent::CATEGORY_SETTLEMENT, $skipped->category());
     }
 
     public function testDeviceSaleAndItsRefundAreRead(): void
@@ -1037,7 +1196,15 @@ final class PhysicalPosClientTest extends TestCase
         $this->assertSame('physical_pos.payment.device_sale', PhysicalPosEvents::PAYMENT_DEVICE_SALE);
         $this->assertContains(PhysicalPosEvents::PAYMENT_DEVICE_SALE, PhysicalPosEvents::ALL);
         $this->assertCount(4, PhysicalPosEvents::FISCAL_DOCUMENT_EVENTS);
-        $this->assertSame(array_merge(PhysicalPosEvents::PAYMENT_EVENTS, PhysicalPosEvents::FISCAL_DOCUMENT_EVENTS), PhysicalPosEvents::ALL);
+        $this->assertSame([
+            'physical_pos.settlement.completed', 'physical_pos.settlement.failed', 'physical_pos.settlement.overdue',
+            'physical_pos.settlement.skipped',
+        ], PhysicalPosEvents::SETTLEMENT_EVENTS);
+        $this->assertSame(array_merge(
+            PhysicalPosEvents::PAYMENT_EVENTS,
+            PhysicalPosEvents::FISCAL_DOCUMENT_EVENTS,
+            PhysicalPosEvents::SETTLEMENT_EVENTS
+        ), PhysicalPosEvents::ALL);
         foreach (PhysicalPosEvents::ALL as $type) {
             $this->assertStringStartsWith('physical_pos.', $type);
         }

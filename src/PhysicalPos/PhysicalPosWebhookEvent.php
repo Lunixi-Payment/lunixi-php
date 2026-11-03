@@ -23,12 +23,17 @@ use Lunixi\Sdk\Webhook\WebhookVerifier;
  * and `deviceOccurredAt`. Webhook amounts are STRINGS in minor units
  * (`"4500"`), matching the HTTP API. A payment event carries only the
  * masked card (`tender.cardMasked`, `cardBrand`, `entryMode`) — no bank
- * references, items or personal data.
+ * references, items or personal data — and, for a payment started from a
+ * device cashier session, `cashier` (`{cashierId, cashierCode}`, see
+ * cashier(); the key is absent otherwise). End-of-day events
+ * (`physical_pos.settlement.*`, category `settlement`) carry their own
+ * payload and no `historySeq`.
  */
 final class PhysicalPosWebhookEvent
 {
     public const CATEGORY_PAYMENT = 'payment';
     public const CATEGORY_FISCAL_DOCUMENT = 'fiscal_document';
+    public const CATEGORY_SETTLEMENT = 'settlement';
     public const CATEGORY_OTHER = 'other';
 
     private string $id;
@@ -92,17 +97,16 @@ final class PhysicalPosWebhookEvent
         return $this->type;
     }
 
-    /** `payment`, `fiscal_document` or `other`. */
+    /** `payment`, `fiscal_document`, `settlement` or `other`. */
     public function category(): string
     {
-        if (strpos($this->type, 'physical_pos.payment.') === 0) {
-            return self::CATEGORY_PAYMENT;
-        }
-        if (strpos($this->type, 'physical_pos.fiscal_document.') === 0) {
-            return self::CATEGORY_FISCAL_DOCUMENT;
-        }
+        return PhysicalPosRequest::webhookCategory($this->type);
+    }
 
-        return self::CATEGORY_OTHER;
+    /** True for `physical_pos.settlement.*` (end-of-day) events. */
+    public function isSettlementEvent(): bool
+    {
+        return $this->category() === self::CATEGORY_SETTLEMENT;
     }
 
     public function isPaymentEvent(): bool
@@ -145,6 +149,18 @@ final class PhysicalPosWebhookEvent
     public function original(): ?array
     {
         return PhysicalPosRequest::webhookOriginal($this->data);
+    }
+
+    /**
+     * The cashier of a payment started from a device cashier session:
+     * `['cashierId' => …, 'cashierCode' => …]` when `data.cashier` carries both
+     * as non-empty strings (other keys are dropped); null otherwise.
+     *
+     * @return array{cashierId:string,cashierCode:string}|null
+     */
+    public function cashier(): ?array
+    {
+        return PhysicalPosRequest::webhookCashier($this->data);
     }
 
     /** `paymentId` of the payload (payment and fiscal document events), or null. */
