@@ -13,8 +13,9 @@ use Lunixi\Sdk\Exception\ConfigurationException;
  * 1000 = 10.00 TRY, an canonical integer string of at least 1), without any installment fee.
  * With basket items, their `price` values must add up to `amount`. The buyer
  * picks the installment on the hosted form and the system adds the installment
- * fee to the charged amount. Required: amount, currency, orderId. Everything
- * else is fluent/optional.
+ * fee to the charged amount; `withEnabledInstallments()` narrows the counts
+ * the form offers. Required: amount, currency, orderId. Everything else is
+ * fluent/optional.
  *
  *   $req = (new CreateIntentRequest(1000, 'TRY', 'WC-1042'))
  *       ->withCallbackUrl('https://shop/checkout/callback')
@@ -124,6 +125,22 @@ final class CreateIntentRequest
     public function withPromissoryNoteSchedule(array $schedule): self
     {
         $this->optional['promissoryNote'] = ['schedule' => PromissoryNotePlan::requireSchedule($schedule)];
+        return $this;
+    }
+
+    /**
+     * The installment counts the hosted form may offer for this payment, e.g.
+     * `withEnabledInstallments(1, 2, 3)`; `withEnabledInstallments(1)` closes
+     * installments (single payment only). The form shows only the counts also
+     * allowed by your panel settings, the card and the platform maximum. Not
+     * calling this means no restriction. Integers 1–36, no duplicates, 1
+     * included; sent in ascending order as `enabledInstallments`.
+     *
+     * @throws ConfigurationException When the list breaks a rule above.
+     */
+    public function withEnabledInstallments(int ...$counts): self
+    {
+        $this->optional['enabledInstallments'] = EnabledInstallments::require($counts);
         return $this;
     }
 

@@ -2,6 +2,13 @@
 
 All notable changes to `lunixi/php-sdk`.
 
+## 1.3.0 — 2026-11-04
+
+- Installment limits for one payment: `CreateIntentRequest::withEnabledInstallments(int ...$counts)` sends `enabledInstallments`, the installment counts the hosted form may offer (`withEnabledInstallments(1)` = single payment only). It only narrows your panel settings, the card and the platform maximum; without it there is no restriction.
+- `InstallmentOptionsRequest::withEnabledInstallments(int ...$counts)` limits the installment table (`POST /api/v1/bin/installments`) the same way; with an `intentId` the intent's list applies first.
+- Payment links: `CreatePaymentLinkRequest::withCheckout()` takes a third argument, `$enabledInstallments` (`checkout.enabledInstallments`; empty = no restriction).
+- The list is checked before sending (integers 1–36, no duplicates, 1 included; `ConfigurationException` otherwise) and sent in ascending order. Rules: `EnabledInstallments`.
+
 ## 1.2.0 — 2026-11-03
 
 - Physical POS end-of-day webhooks: `PhysicalPosEvents::SETTLEMENT_COMPLETED`, `SETTLEMENT_FAILED`, `SETTLEMENT_OVERDUE`, `SETTLEMENT_SKIPPED` (also `SETTLEMENT_EVENTS`, and in `ALL`); `PhysicalPosWebhookEvent` reads them with category `settlement` (`CATEGORY_SETTLEMENT`, `isSettlementEvent()`); they carry no `historySeq`.

@@ -186,6 +186,40 @@ $intent = $lunixi->payments()->createIntent(
 $lunixi->payments()->captureRemaining($intent->paymentId(), $stableKey);
 ```
 
+### Installment limits (enabledInstallments)
+
+The buyer picks the installment on the hosted form. `withEnabledInstallments()`
+limits the counts the form may offer for one payment (the same field as
+iyzico's checkout form). The form shows only the counts that your panel
+installment settings, the card and the platform maximum also allow, so the list
+can narrow the choice but never widen it. Without it there is no restriction.
+
+```php
+// At most 3 installments for this order.
+$intent = $lunixi->payments()->createIntent(
+    (new CreateIntentRequest('1000', 'TRY', 'WC-1042'))->withEnabledInstallments(1, 2, 3)
+);
+
+// Single payment only (for example gold or gift cards).
+(new CreateIntentRequest('1000', 'TRY', 'WC-1043'))->withEnabledInstallments(1);
+```
+
+The counts are integers from 1 to 36 and must include 1; a duplicate or an
+empty list throws `ConfigurationException` before sending (a duplicate is not
+removed for you). The list is sent in ascending order.
+
+The installment table takes the same list, for example for a product page tab
+(`format` `html` or `mobile` included). With an `intentId`, the intent's list
+applies first and this one can only narrow it:
+
+```php
+use Lunixi\Sdk\Payment\InstallmentOptionsRequest;
+
+$table = $lunixi->payments()->installmentOptions(
+    (new InstallmentOptionsRequest('1000', 'TRY'))->withEnabledInstallments(1, 2, 3)
+);
+```
+
 ### Payment methods (Faturana Yansıt, wallets, promissory notes, card)
 
 `directMethodPayment()` starts a payment with any payment method from your
@@ -625,6 +659,15 @@ echo $link->url(); // https://pay.lunixi.com/<code>
 
 // Changes create a new version; pass the rowVersion you read.
 $lunixi->paymentLinks()->update($link->id(), $link->rowVersion(), ['title' => 'Consulting fee (October)']);
+```
+
+`withCheckout($requireThreeDs, $paymentMethods, $enabledInstallments)` narrows
+the link's checkout. `$enabledInstallments` follows the rules of
+[installment limits](#installment-limits-enabledinstallments); an empty list
+means no restriction:
+
+```php
+$request->withCheckout(false, [], [1, 2, 3]); // at most 3 installments
 ```
 
 The key needs the `payment-link:create`, `:view`, `:manage` and `:send` scopes

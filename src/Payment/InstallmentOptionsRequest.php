@@ -50,6 +50,21 @@ final class InstallmentOptionsRequest
         return $this;
     }
 
+    /**
+     * Limits the table to these installment counts, e.g.
+     * `withEnabledInstallments(1, 2, 3)` for a product page that allows at
+     * most 3. With an `intentId` the intent's own list applies first and this
+     * one can only narrow it further. Integers 1–36, no duplicates, 1
+     * included; sent in ascending order as `enabledInstallments`.
+     *
+     * @throws ConfigurationException When the list breaks a rule above.
+     */
+    public function withEnabledInstallments(int ...$counts): self
+    {
+        $this->data['enabledInstallments'] = EnabledInstallments::require($counts);
+        return $this;
+    }
+
     public function withFormat(string $format): self
     {
         $this->data['format'] = $format;

@@ -410,16 +410,24 @@ final class CreatePaymentLinkRequest
 
     /**
      * Narrows the checkout: `requireThreeDs` can only tighten; `paymentMethods`
-     * is a subset of your form settings (empty = your form settings).
+     * is a subset of your form settings (empty = your form settings);
+     * `enabledInstallments` lists the installment counts the form may offer
+     * (empty = no restriction; `[1]` = single payment only; otherwise integers
+     * 1–36, no duplicates, 1 included, sent in ascending order).
      *
      * @param string[] $paymentMethods
+     * @param int[] $enabledInstallments
      */
-    public function withCheckout(bool $requireThreeDs = false, array $paymentMethods = []): self
+    public function withCheckout(bool $requireThreeDs = false, array $paymentMethods = [], array $enabledInstallments = []): self
     {
-        $this->payload['checkout'] = [
+        $checkout = [
             'requireThreeDs' => $requireThreeDs,
             'paymentMethods' => self::stringList($paymentMethods, 'paymentMethods'),
         ];
+        if ($enabledInstallments !== []) {
+            $checkout['enabledInstallments'] = EnabledInstallments::require($enabledInstallments, 'checkout.enabledInstallments');
+        }
+        $this->payload['checkout'] = $checkout;
         return $this;
     }
 
