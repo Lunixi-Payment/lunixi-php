@@ -76,6 +76,16 @@ final class PaymentLinkItem
         return $this;
     }
 
+    /** Lunixi product category (ProductCategory); the gateway answers an unknown value with 400. */
+    public function withProductCategory(string $productCategory): self
+    {
+        if (trim($productCategory) === '') {
+            throw new ConfigurationException("PaymentLinkItem 'productCategory' must not be empty.");
+        }
+        $this->payload['productCategory'] = $productCategory;
+        return $this;
+    }
+
     /** @return array<string,mixed> */
     public function toArray(): array
     {

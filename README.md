@@ -57,7 +57,7 @@ Payment SDK v1 implemented & verified (**300 unit tests, 2041 assertions**, PHP 
 | `ApiClient` | Authenticated requests: bearer + Ed25519 step-up + Idempotency-Key + money-safe retry (401 re-auth; 5xx/network retried ONLY when idempotent). |
 | `Payment\PaymentClient` | `createIntent` / `directMethodPayment` (card and other methods) / BIN-installments / stored cards / `capture` / `refund` / `void` / `get` / `list` against the verified gateway routes. |
 | `Payment\PaymentLinkClient` | Payment links (`/api/v1/payments/links`): create, list/iterate, get, update, pause/resume/deactivate, send, QR, attempts, payments, image upload. Every gateway call is signed (the routes accept the API-key signature only); the image PUT to storage carries no credentials. |
-| `Payment\*` (DTOs) | `CreateIntentRequest` (current CreatePaymentIntentDto fields) + `DirectMethodPaymentRequest`/`DirectPaymentRequest` (marketplace 2D/3D base)/`CardDetails`/`InstallmentOptionsRequest`/`StoreCardRequest` + `Buyer`/`Address`/`BasketItem` (`itemType` PHYSICAL/VIRTUAL; optional insurance fields for `createIntent`, checked before sending, categories in `InsuranceItemCategory`); result objects `CheckoutIntent`/`PaymentIntent`/`PaymentList`; `PaymentStatus`/`Currency` constants. Payment links: `CreatePaymentLinkRequest`/`PaymentLinkItem`/`PaymentLinkCustomField`, `PaymentLink`/`PaymentLinkList`/`PaymentLinkQrCode`, `PaymentLinkUsage`/`PaymentLinkAmountMode`/`PaymentLinkState`/`PaymentLinkAttemptState`. |
+| `Payment\*` (DTOs) | `CreateIntentRequest` (current CreatePaymentIntentDto fields) + `DirectMethodPaymentRequest`/`DirectPaymentRequest` (marketplace 2D/3D base)/`CardDetails`/`InstallmentOptionsRequest`/`StoreCardRequest` + `Buyer`/`Address`/`BasketItem` (`itemType` PHYSICAL/VIRTUAL; optional `productCategory`, codes in `ProductCategory`; optional insurance fields for `createIntent`, checked before sending, categories in `InsuranceItemCategory`); result objects `CheckoutIntent`/`PaymentIntent`/`PaymentList`; `PaymentStatus`/`Currency` constants. Payment links: `CreatePaymentLinkRequest`/`PaymentLinkItem`/`PaymentLinkCustomField`, `PaymentLink`/`PaymentLinkList`/`PaymentLinkQrCode`, `PaymentLinkUsage`/`PaymentLinkAmountMode`/`PaymentLinkState`/`PaymentLinkAttemptState`. |
 | `Wallet\WalletClient` | Closed-loop wallet (`/api/v1/wallet/*`, 60 routes): `ping()` plus sub-clients `programs`, `endUsers`, `wallets`, `deposits`, `corporate`, `fees`, `transfers`, `withdrawals`, `operations`, `topups`, `payments`, `qr`, `bulkPayouts`. Every call is signed; requests are checked against `WalletRoutes` (unknown/missing field, non-digit amount, missing Idempotency-Key) before anything is sent. Lists return `WalletPage`; the QR image `WalletQrImage`; constants in `WalletAccountType`, `WalletKycLevel`, `WalletOtpChannel`, `WalletQrType`, `WalletQrImageFormat`, `WalletBulkTargetType`, `WalletEndUserStatus`, `WalletCorporateAccountStatus`. |
 | `BankConnect\BankConnectClient` | Bank accounts (`/api/v1/bank-connect`, product BANK_CONNECT): `listBanks`, `listConnections`/`getConnection`, `listAccounts`/`getAccount`, `listBalances`, `listTransactions`/`getTransaction` (each list with an `iterate…`), `requestSync`. Every call is signed; filters are checked before sending (unknown filter, value outside its set, amount or 92-day window rule). Results: `BankConnectPage`, `BankConnectBank`, `BankConnectConnection`, `BankConnectAccount` (+ `BankConnectFreshness`), `BankConnectBalance`, `BankConnectTransaction`, `BankConnectSyncRequest`; constants `BankConnectionStatus`, `BankAccountStatus`, `BankTransactionDirection`, `BankTransactionType`, `BankAvailability`, `BankCapability`, `BankSyncStatus`; webhook `BankConnectEvents` + `BankAccountTransactionReceived`. Money movement (scope `bank-connect:transfer`, key with an IP allowlist): `->transfers()` (`BankTransferClient`: `listPurposes`, `create`, `list`/`iterate`, `get`) and `->fx()` (`BankFxClient`: `listRates`, `createQuote`, `createOrder`, `listOrders`/`iterateOrders`, `getOrder`); `Idempotency-Key` generated when not passed; routes `BankTransferRoutes`; webhook `BankTransferEvents` + `BankTransferEvent`. |
 | `Sanction\SanctionClient` | Sanctions screening (`/api/v1/sanction/*`, product SANCTION_SERVICE, `sanction:view_results`; bearer only): `screenName` → `ScreenResult`, `screenWallet` → `WalletScreenResult`, `screenPublicProcurementBan` → `ProcurementBanScreenResult`, `screenAccount` / `screenTransaction` / `screenAdverseMedia` → `ScreenOutcome`; history, monitoring and entity-intelligence reads (`SanctionPage` lists with `iterate…`). `isClear()` only with no match and `coverageStatus` COMPLETE; a screening that cannot run (503) throws. Requests are checked against `SanctionRoutes` (the Node SDK's `SANCTION_ROUTES`); constants `RiskDomain`, `ScreenMode`, `WalletScreenMode`, `SubjectType`, `CoverageStatus`, `HitType`. |
@@ -168,6 +168,36 @@ take it as their first argument.
 - Marketplace: the `MarketplaceSeller` amounts must add up to `amount`.
 - In responses and webhooks `amount` is the charged amount, installment fee
   included.
+
+### Product category
+
+`productCategory` (optional, `ProductCategory`) is the Lunixi product category
+of a basket item. It is used by payment methods with legal installment limits
+(e.g. shopping loan) and other platform features. Every endpoint that takes
+basket items accepts it, and so does a payment link item
+(`PaymentLinkItem::withProductCategory()`). An unknown value is answered with
+400; without it nothing changes. The list only grows by appending, so the SDK
+sends the value as given.
+
+```php
+use Lunixi\Sdk\Payment\BasketItem;
+use Lunixi\Sdk\Payment\ProductCategory;
+
+new BasketItem([
+    'id' => 'item-1', 'price' => '1500000', 'name' => 'Smartphone', 'category1' => 'phone',
+    'itemType' => BasketItem::TYPE_PHYSICAL, 'productCategory' => ProductCategory::MOBILE_PHONE,
+]);
+```
+
+Codes (`ProductCategory::ALL`): `MOBILE_PHONE`, `TABLET`, `COMPUTER`, `TV_AUDIO`,
+`WHITE_GOODS`, `SMALL_APPLIANCE`, `CAMERA`, `GAME_CONSOLE`, `WEARABLE`,
+`ELECTRONICS_ACCESSORY`, `ELECTRONICS_OTHER`, `GOLD`, `JEWELRY`, `WATCH`,
+`APPAREL`, `SHOES_BAGS`, `COSMETICS`, `FURNITURE`, `HOME_LIVING`, `GROCERY`,
+`BOOKS_MEDIA`, `TOYS`, `SPORTS_OUTDOOR`, `PET_SUPPLIES`, `AUTO_PARTS`,
+`MUSICAL_INSTRUMENT`, `MICROMOBILITY`, `VEHICLE`, `TRANSPORT_TICKET`,
+`EVENT_TICKET`, `ACCOMMODATION`, `TRAVEL_PACKAGE`, `HEALTH_SERVICE`, `EDUCATION`,
+`SHIPPING_SERVICE`, `DIGITAL_GOODS`, `GIFT_CARD`, `SUBSCRIPTION`, `SERVICE_OTHER`,
+`OTHER`.
 
 ### Pre-authorization (preauth)
 
@@ -581,7 +611,7 @@ file_put_contents('notes.pdf', $pdf->bytes());
   `minItems()`, `maxItems()`) and VKN. A field with `requiredWhen()` is required
   only when that sibling field has that value, and must be left out otherwise.
 - The plan is either `withPromissoryNoteSchedule($rows)` (amounts in minor units
-  adding up to `amount`, `YYYY-MM-DD` dates after today in ascending order, at
+  adding up to `amount`, `YYYY-MM-DD` dates at least 8 days after the issue date in ascending order, at
   most 24 rows) or `withPromissoryNoteCount($count)` (the amount is split evenly,
   due dates from your connection settings; allowed counts are the `noteCount`
   options in `inputFields()`), never both.

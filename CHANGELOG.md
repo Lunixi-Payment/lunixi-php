@@ -2,6 +2,11 @@
 
 All notable changes to `lunixi/php-sdk`.
 
+## 1.4.0 — 2026-11-12
+
+- Basket items: optional `productCategory`, the Lunixi product category (`ProductCategory`, 40 codes, e.g. `MOBILE_PHONE`). Used by payment methods with legal installment limits (e.g. shopping loan) and other platform features. Accepted on every endpoint that takes `basketItems` (checkout intent, direct 2D/3D, marketplace); an unknown value is answered with 400, without it nothing changes. `BasketItem` used to drop the key; it now sends it (a non-empty string; `null` = not sent).
+- Payment links: `PaymentLinkItem::withProductCategory()` sends `productCategory` on a link item.
+
 ## 1.3.0 — 2026-11-04
 
 - Installment limits for one payment: `CreateIntentRequest::withEnabledInstallments(int ...$counts)` sends `enabledInstallments`, the installment counts the hosted form may offer (`withEnabledInstallments(1)` = single payment only). It only narrows your panel settings, the card and the platform maximum; without it there is no restriction.

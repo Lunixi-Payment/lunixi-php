@@ -11,6 +11,9 @@ use Lunixi\Sdk\Exception\ConfigurationException;
  * `price` is the line total in minor units (e.g. 1000 = 10.00).
  * Required: id, price, name, category1, itemType (PHYSICAL or VIRTUAL).
  *
+ * Optional `productCategory` (ProductCategory) is accepted on every endpoint that takes
+ * basket items; the gateway answers an unknown value with 400.
+ *
  * Optional insurance fields (insuranceCategory, insuranceTypes, insuranceEligible,
  * insuranceValueAmount, insuranceContext, insuranceData) are accepted by `createIntent`
  * (Checkout Form) and by the insurance calls' `context.items`; `directMethodPayment`
@@ -55,7 +58,7 @@ final class BasketItem
 
     /**
      * @param array<string,mixed> $data Keys: id, price(string minor), name, category1, itemType, category2?,
-     *   insuranceCategory? (InsuranceItemCategory), insuranceTypes? (string[]), insuranceEligible? (bool),
+     *   productCategory? (ProductCategory), insuranceCategory? (InsuranceItemCategory), insuranceTypes? (string[]), insuranceEligible? (bool),
      *   insuranceValueAmount? (string minor, one unit), insuranceContext? (array<string,mixed>: the
      *   category's prefill keys, e.g. transportMode, departureAt; no personal data), insuranceData?
      *   (array<string,mixed>: policyholder?, insured? (list), one type object, e.g. tickets; at most
@@ -83,6 +86,12 @@ final class BasketItem
         ];
         if (isset($data['category2']) && $data['category2'] !== '') {
             $out['category2'] = (string) $data['category2'];
+        }
+        if (isset($data['productCategory'])) {
+            if (!is_string($data['productCategory']) || trim($data['productCategory']) === '') {
+                throw new ConfigurationException("BasketItem 'productCategory' must be a ProductCategory code.");
+            }
+            $out['productCategory'] = $data['productCategory'];
         }
         $this->data = $out + self::insuranceFields($data);
     }

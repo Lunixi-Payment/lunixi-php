@@ -13,6 +13,8 @@ use Lunixi\Sdk\Payment\CreateIntentRequest;
 use Lunixi\Sdk\Payment\DirectPaymentRequest;
 use Lunixi\Sdk\Payment\InstallmentOptionsRequest;
 use Lunixi\Sdk\Payment\InsuranceItemCategory;
+use Lunixi\Sdk\Payment\PaymentLinkItem;
+use Lunixi\Sdk\Payment\ProductCategory;
 use Lunixi\Sdk\Payment\StoreCardRequest;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -123,6 +125,38 @@ final class DtoValidationTest extends TestCase
             '{"transportMode":"TRAIN","departureAt":"2025-12-23T12:50:00+03:00","isPromotional":false}',
             json_encode($sent['insuranceContext'])
         );
+    }
+
+    public function testProductCategoriesMatchTheGatewayList(): void
+    {
+        $this->assertSame([
+            'MOBILE_PHONE', 'TABLET', 'COMPUTER', 'TV_AUDIO', 'WHITE_GOODS', 'SMALL_APPLIANCE', 'CAMERA', 'GAME_CONSOLE',
+            'WEARABLE', 'ELECTRONICS_ACCESSORY', 'ELECTRONICS_OTHER', 'GOLD', 'JEWELRY', 'WATCH', 'APPAREL', 'SHOES_BAGS',
+            'COSMETICS', 'FURNITURE', 'HOME_LIVING', 'GROCERY', 'BOOKS_MEDIA', 'TOYS', 'SPORTS_OUTDOOR', 'PET_SUPPLIES',
+            'AUTO_PARTS', 'MUSICAL_INSTRUMENT', 'MICROMOBILITY', 'VEHICLE', 'TRANSPORT_TICKET', 'EVENT_TICKET',
+            'ACCOMMODATION', 'TRAVEL_PACKAGE', 'HEALTH_SERVICE', 'EDUCATION', 'SHIPPING_SERVICE', 'DIGITAL_GOODS',
+            'GIFT_CARD', 'SUBSCRIPTION', 'SERVICE_OTHER', 'OTHER',
+        ], ProductCategory::ALL);
+    }
+
+    public function testBasketItemCarriesProductCategory(): void
+    {
+        $base = ['id' => 'i1', 'price' => '1000', 'name' => 'Phone', 'category1' => 'phone', 'itemType' => BasketItem::TYPE_PHYSICAL];
+
+        $sent = (new BasketItem($base + ['productCategory' => ProductCategory::MOBILE_PHONE]))->toArray();
+        $this->assertSame('MOBILE_PHONE', $sent['productCategory']);
+
+        $this->assertArrayNotHasKey('productCategory', (new BasketItem($base + ['productCategory' => null]))->toArray());
+        $this->assertArrayNotHasKey('productCategory', (new BasketItem($base))->toArray());
+
+        $this->expectException(ConfigurationException::class);
+        new BasketItem($base + ['productCategory' => '']);
+    }
+
+    public function testPaymentLinkItemCarriesProductCategory(): void
+    {
+        $item = (new PaymentLinkItem('Phone', '1000'))->withProductCategory(ProductCategory::MOBILE_PHONE);
+        $this->assertSame(['name' => 'Phone', 'unitPriceMinor' => '1000', 'productCategory' => 'MOBILE_PHONE'], $item->toArray());
     }
 
     public function testInsuranceItemCategoriesMatchTheGatewayList(): void
