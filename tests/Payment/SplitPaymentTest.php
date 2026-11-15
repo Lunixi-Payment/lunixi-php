@@ -122,8 +122,9 @@ final class SplitPaymentTest extends TestCase
         }
         $this->assertSame('3', $body['legs'][2]['promissoryNote']['noteCount']);
         $this->assertSame(['cardToken' => 'ct_1', 'amount' => '10000', 'installment' => 3, 'installmentQuoteToken' => 'iq_1'], $body['legs'][0]);
-        foreach (PaymentMethod::METHOD_BLOCK_FIELDS as $block) {
+        foreach (SplitPaymentRequest::LEG_BLOCK_FIELDS as $block) {
             $this->assertContains($block, SplitPaymentRequest::LEG_FIELDS);
+            $this->assertContains($block, PaymentMethod::METHOD_BLOCK_FIELDS);
         }
     }
 
@@ -433,6 +434,7 @@ final class SplitPaymentTest extends TestCase
         }
         $this->assertSame([
             'PROVIDER_DISABLED_IN_FORM' => 'payment.provider.disabled_in_form',
+            'BANK_NOT_ENABLED' => 'payment.method.bank_not_enabled',
             'METHOD_SELECTION_ATTEMPTS_EXHAUSTED' => 'payment.method.selection_attempts_exhausted',
             'ORDER_LOCKED' => 'payment.checkout.order_locked',
         ], (new \ReflectionClass(CheckoutFormErrorCode::class))->getConstants());

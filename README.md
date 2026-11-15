@@ -250,7 +250,7 @@ $table = $lunixi->payments()->installmentOptions(
 );
 ```
 
-### Payment methods (Faturana Yansıt, wallets, promissory notes, card)
+### Payment methods (Faturana Yansıt, wallets, open banking, shopping loan, promissory notes, card)
 
 `directMethodPayment()` starts a payment with any payment method from your
 server (`POST /api/v1/payments/direct/payment`), card included. `createIntent()`
@@ -346,6 +346,63 @@ if (count($method->providers()) > 1) {
 $request = (new DirectMethodPaymentRequest('5000', 'TRY', 'WC-1043'))
     ->withMethodFields(PaymentMethod::WALLET, $providerCode, $fields);
 ```
+
+#### Open banking and shopping loan
+
+`OPEN_BANKING` (pay from the buyer's bank account) and `SHOPPING_LOAN` (a loan
+from the buyer's bank) take one field: `bankCode`, the 4-digit bank code the
+buyer chose. Offer the banks of `$method->banks()` (`PaymentMethodBank`:
+`bankCode()`, `bankName()`, `providerCode()`, sorted by name): only banks open
+in the merchant's agreement permissions (panel → provider connection →
+Agreement Permissions) are listed. `providerCode` may be null: the platform
+then picks a connected provider that offers the bank, even when several are
+connected. A code the provider does not support is refused with 400
+`payment.method.block_invalid`; a bank not open in any connection with 422
+`payment.method.bank_not_enabled` (`CheckoutFormErrorCode::BANK_NOT_ENABLED`,
+`details.bankCode`). The bank order and visibility in the form settings affect
+only the hosted Checkout Form, not this API.
+
+```php
+$method = $lunixi->payments()->listPaymentMethods(PaymentMethod::OPEN_BANKING)->find(PaymentMethod::OPEN_BANKING);
+$banks = [];
+foreach ($method->banks() as $bank) {
+    $banks[$bank->bankCode()] = $bank->bankName();   // "0062" => "T. GARANTİ BANKASI A.Ş."
+}
+
+$request = (new DirectMethodPaymentRequest('5000', 'TRY', 'WC-1044'))
+    ->withMethodFields(PaymentMethod::OPEN_BANKING, null, ['bankCode' => $bankTheBuyerPicked])
+    ->withCallbackUrl('https://shop.example/lunixi/return');
+$result = $lunixi->payments()->directMethodPayment($request, $stableKey);
+
+$action = $result->action();
+if ($action !== null && $action->type() === PaymentActionType::REDIRECT) {
+    header('Location: ' . $action->redirectUrl());   // the buyer approves at the bank and returns to callbackUrl
+}
+```
+
+A shopping loan is built the same way with `PaymentMethod::SHOPPING_LOAN` and
+also needs the basket: `withBasketItems()` with 1 to 100 items
+(`PaymentMethod::SHOPPING_LOAN_MAX_BASKET_ITEMS`), checked before sending. The
+bank sets the loan term from the items' `productCategory`
+(`ProductCategory::MOBILE_PHONE`, `COMPUTER` …), so send it on every item; a
+basket with a `GOLD` item is refused.
+
+- The result is HTTP 202 with a `REDIRECT` action. Send the buyer to
+  `redirectUrl()`; the buyer returns to `callbackUrl`. Decide the order only
+  from the webhook (`payment.captured` / `payment.failed`).
+- A shopping loan may wait for the bank's approval. You then receive
+  `payment.provider_pending`: the payment is not paid yet. Do not deliver the
+  order; the result follows as `payment.captured` or `payment.failed`.
+- Refunds: a shopping loan can be refunded in full (`refundRemaining()`) or in
+  part (`refund()`). An open-banking payment has no refund or void.
+- Neither method can be a split payment leg (`SplitPaymentRequest::LEG_BLOCK_FIELDS`).
+
+Redirect wallets (`PaymentMethod::WALLET` with `providerCode`
+`COMPAY_PAYCELL_WALLET`, `COMPAY_FASTPAY` or `COMPAY_PASSO_WALLET`) take no
+fields: `withMethodFields(PaymentMethod::WALLET, 'COMPAY_FASTPAY')`. They answer
+with a `REDIRECT` action the same way and have no refund or void. A meal card
+(`MEAL_CARD`) is sent in the `mealCard` block:
+`withMethodFields(PaymentMethod::MEAL_CARD, 'METROPOL')`.
 
 ### Split payments
 

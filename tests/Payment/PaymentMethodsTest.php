@@ -221,7 +221,7 @@ final class PaymentMethodsTest extends TestCase
     /** @return array<string,array{0:string}> */
     public static function methodsWithoutABlock(): array
     {
-        return ['bnpl' => ['BNPL'], 'qr' => ['QR'], 'qr code' => ['QR_CODE'], 'transfer' => ['BANK_TRANSFER']];
+        return ['bnpl' => ['BNPL'], 'qr' => ['QR'], 'qr code' => ['QR_CODE']];
     }
 
     #[DataProvider('methodsWithoutABlock')]

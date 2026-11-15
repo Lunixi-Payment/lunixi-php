@@ -13,12 +13,21 @@ use Lunixi\Sdk\Exception\ConfigurationException;
  *
  * Choose the method with exactly one of:
  *   - withMethodFields($method, $providerCode, $fields) for a method other than
- *     card (Faturana Yansıt, wallets …). The fields are the provider's
- *     `inputFields` from PaymentClient::listPaymentMethods(); `$providerCode`
- *     may be null when the method's `providerSelection` is OPTIONAL (with
- *     `providerSelectionMode` PLATFORM the platform then picks the provider).
+ *     card (Faturana Yansıt, wallets, meal card, open banking, shopping loan …).
+ *     The fields are the provider's `inputFields` from
+ *     PaymentClient::listPaymentMethods(); `$providerCode` may be null when the
+ *     method's `providerSelection` is OPTIONAL (with `providerSelectionMode`
+ *     PLATFORM the platform then picks the provider).
  *     Senetle Ödeme (PROMISSORY_NOTE) also needs the plan:
  *     withPromissoryNoteSchedule($schedule) or withPromissoryNoteCount($count).
+ *     Open banking (OPEN_BANKING) and shopping loan (SHOPPING_LOAN) take the
+ *     buyer's bank as `['bankCode' => '0062']` (an option of the provider's
+ *     `bankCode` input field); the response carries a REDIRECT action. A
+ *     shopping loan also needs withBasketItems() (1 to 100 items).
+ *     Para Transferi (BANK_TRANSFER) takes no provider code (null) and the
+ *     buyer's bank as `['bankCode' => '0062']` (PaymentMethod::BANK_TRANSFER_OTHER_BANKS_CODE
+ *     for other banks); the response carries a DISPLAY action with the
+ *     transfer instruction (PaymentAction::bankTransfer()).
  *   - withCard($card) for a card: the only server-side card charge. Without
  *     withForce3D() it is charged without 3D Secure (the bank may still ask
  *     for it: the response then carries a REDIRECT action); withForce3D(true)
@@ -97,6 +106,10 @@ final class DirectMethodPaymentRequest
         }
         if ($code === PaymentMethod::PROMISSORY_NOTE && array_key_exists('noteCount', $block)) {
             $block['noteCount'] = PromissoryNotePlan::requireNoteCount($block['noteCount']);
+        }
+
+        if ($code === PaymentMethod::BANK_TRANSFER && $providerCode !== null) {
+            throw new ConfigurationException("paymentMethod BANK_TRANSFER takes no providerCode: pass null and the buyer's bank as ['bankCode' => '0062'].");
         }
 
         $this->paymentMethod = $code;
@@ -283,6 +296,7 @@ final class DirectMethodPaymentRequest
         } elseif ($this->promissoryNotePlan !== null) {
             throw new ConfigurationException('A promissory-note plan can only be sent with paymentMethod PROMISSORY_NOTE.');
         }
+        PaymentMethod::assertShoppingLoanBasket($this->paymentMethod, $this->data['basketItems'] ?? null);
 
         $body = ['paymentMethod' => $this->paymentMethod] + $this->data;
         $body[PaymentMethod::blockName($this->paymentMethod)] = $block === [] ? new \stdClass() : $block;

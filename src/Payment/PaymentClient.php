@@ -258,6 +258,93 @@ final class PaymentClient
     }
 
     /**
+     * Bank transfer exceptions (signed): late (LATE), short (UNDERPAID) and excess
+     * (OVERPAID) transfers of BANK_TRANSFER payments. Each item carries id,
+     * paymentId, kind, status, environment, amountMinor, currency, expectedMinor,
+     * receivedMinor, counterpartyNameMasked, acceptedPaymentId, refundSource,
+     * decidedAt, refundedAt, createdAt. The sender name is masked.
+     *
+     * @param string|null $environment 'TEST' or 'LIVE'; null = both
+     * @param string|null $status one of BankTransferException::STATUSES; null = all
+     * @param int|null $limit 1..200 (default 50)
+     * @return list<array<string,mixed>>
+     * @throws ApiException
+     */
+    public function listBankTransferExceptions(?string $environment = null, ?string $status = null, ?int $limit = null): array
+    {
+        $query = [];
+        if ($environment !== null) {
+            if (!in_array($environment, BankTransferException::ENVIRONMENTS, true)) {
+                throw new ConfigurationException(sprintf('environment must be TEST or LIVE; got %s.', $environment));
+            }
+            $query['environment'] = $environment;
+        }
+        if ($status !== null) {
+            if (!in_array($status, BankTransferException::STATUSES, true)) {
+                throw new ConfigurationException(sprintf('status must be one of %s; got %s.', implode(', ', BankTransferException::STATUSES), $status));
+            }
+            $query['status'] = $status;
+        }
+        if ($limit !== null) {
+            if ($limit < 1 || $limit > BankTransferException::LIMIT_MAX) {
+                throw new ConfigurationException(sprintf('limit must be between 1 and %d; got %d.', BankTransferException::LIMIT_MAX, $limit));
+            }
+            $query['limit'] = (string) $limit;
+        }
+        $options = $query === [] ? ['stepUp' => true] : ['stepUp' => true, 'query' => $query];
+        $response = $this->api->request('GET', self::BASE . '/bank-transfer/exceptions', null, $options);
+        $data = isset($response['data']) && is_array($response['data']) ? $response['data'] : [];
+        $items = $data['items'] ?? [];
+
+        return is_array($items) ? array_values($items) : [];
+    }
+
+    /**
+     * Accepts a bank transfer exception (signed; the key needs `payment:refund`).
+     * LATE: a new captured payment linked to the original is opened for the same
+     * order (its ID is `acceptedPaymentId`); UNDERPAID: the payment is captured
+     * with the amount received. OVERPAID cannot be accepted (HTTP 409
+     * `payment.bank_transfer.decision_not_supported`).
+     *
+     * @return array<string,mixed>|null the updated exception
+     * @throws ApiException
+     */
+    public function acceptBankTransferException(string $exceptionId): ?array
+    {
+        return $this->decideBankTransferException($exceptionId, 'accept');
+    }
+
+    /**
+     * Reports that you refunded the money of a bank transfer exception to the
+     * sender from your own bank (signed; the key needs `payment:refund`). Lunixi
+     * does not send the refund. For UNDERPAID the waiting payment closes as failed.
+     *
+     * @return array<string,mixed>|null the updated exception
+     * @throws ApiException
+     */
+    public function markBankTransferExceptionRefunded(string $exceptionId): ?array
+    {
+        return $this->decideBankTransferException($exceptionId, 'refunded');
+    }
+
+    /** @return array<string,mixed>|null */
+    private function decideBankTransferException(string $exceptionId, string $decision): ?array
+    {
+        if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $exceptionId) !== 1) {
+            throw new ConfigurationException('exceptionId must be the UUID of a bank transfer exception (items[].id).');
+        }
+        $response = $this->api->request(
+            'POST',
+            self::BASE . '/bank-transfer/exceptions/' . rawurlencode($exceptionId) . '/' . $decision,
+            null,
+            ['stepUp' => true]
+        );
+        $data = $response['data'] ?? null;
+
+        return is_array($data) && $data !== [] ? $data : null;
+    }
+
+    /**
      * The notes of a Senetle Ödeme payment (signed): serial number, sequence, amount,
      * due date and status (PromissoryNoteStatus) of each. Statuses are
      * refreshed from the provider periodically; changes also arrive as

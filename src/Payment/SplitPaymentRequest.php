@@ -31,6 +31,14 @@ final class SplitPaymentRequest
     /** Body fields of POST /payments/split (gateway SplitPaymentDto). */
     public const FIELDS = ['totalAmount', 'currency', 'ownerRef', 'legs', 'orderId', 'ownerScope', 'callbackUrl'];
 
+    /**
+     * Method blocks a non-card leg can carry (gateway SplitPaymentLegDto). Meal
+     * card, open banking and shopping loan cannot be split payment legs: open
+     * banking and shopping loan send the buyer to the provider's page and may
+     * wait for the bank, which the leg order does not carry.
+     */
+    public const LEG_BLOCK_FIELDS = ['mobileBilling', 'wallet', 'promissoryNote'];
+
     /** Fields of one leg (gateway SplitPaymentLegDto). */
     public const LEG_FIELDS = [
         'paymentMethod', 'cardToken', 'amount', 'force3D', 'installment', 'installmentQuoteToken',
@@ -157,12 +165,12 @@ final class SplitPaymentRequest
             throw new ConfigurationException('Use addCardLeg() for a card leg.');
         }
         $blockName = PaymentMethod::blockName($code);
-        if (!in_array($blockName, PaymentMethod::METHOD_BLOCK_FIELDS, true)) {
+        if (!in_array($blockName, self::LEG_BLOCK_FIELDS, true)) {
             throw new ConfigurationException(sprintf(
                 '%s: paymentMethod %s cannot be a split payment leg; a non-card leg carries one of the blocks %s.',
                 $path,
                 $code,
-                implode(', ', PaymentMethod::METHOD_BLOCK_FIELDS)
+                implode(', ', self::LEG_BLOCK_FIELDS)
             ));
         }
         $providerCode = PaymentMethod::requireProviderCode($providerCode);

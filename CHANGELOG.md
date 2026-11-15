@@ -2,6 +2,16 @@
 
 All notable changes to `lunixi/php-sdk`.
 
+## 1.5.0 — 2026-11-15
+
+- Para Transferi (`BANK_TRANSFER`, havale / EFT / FAST): `withMethodFields(PaymentMethod::BANK_TRANSFER, null, ['bankCode' => '0062'])` sends the `bankTransfer` block (`PaymentMethod::BANK_TRANSFER_OTHER_BANKS_CODE` `'9999'` = other banks); a provider code throws `ConfigurationException`. The result carries a `DISPLAY` action: `PaymentAction::bankTransfer()` is the transfer instruction (bank, holder name, IBAN, amount, `paymentCode`, `expiresAt`, `otherBank`). Exceptions: `PaymentClient::listBankTransferExceptions($environment, $status, $limit)`, `acceptBankTransferException($id)`, `markBankTransferExceptionRefunded($id)` (signed; decisions need `payment:refund`); constants `BankTransferException` (kinds, statuses) and `Lunixi\Sdk\Payment\BankTransferEvents` (`payment.bank_transfer.*`, not Bank Connect's outgoing-transfer events).
+- Payment methods: open banking (`OPEN_BANKING`) and shopping loan (`SHOPPING_LOAN`) on `directMethodPayment()`: `withMethodFields(PaymentMethod::OPEN_BANKING | SHOPPING_LOAN, $providerCode, ['bankCode' => '0062'])` sends the `openBanking` / `shoppingLoan` block (`bankCode`: the buyer's bank from the provider's `bankCode` options). The result carries a `REDIRECT` action (`redirectUrl()`). A shopping loan needs `withBasketItems()` with 1 to 100 items (`PaymentMethod::SHOPPING_LOAN_MAX_BASKET_ITEMS`); `toArray()` throws `ConfigurationException` otherwise.
+- Bank permissions: `PaymentMethodInfo::banks()` / `bank($bankCode)` return `PaymentMethodBank` (`bankCode()`, `bankName()`, `providerCode()`) for `OPEN_BANKING` and `SHOPPING_LOAN`, the banks open in the merchant's agreement permissions. Send the chosen `bankCode`; `$providerCode` may be null and the platform then picks a connected provider that offers the bank. `CheckoutFormErrorCode::BANK_NOT_ENABLED` (`payment.method.bank_not_enabled`, 422, API and form); `payment.provider.disabled_in_form` may carry `details.bankCode` in the form.
+- Meal card (`MEAL_CARD`): the `mealCard` block is now accepted by `withMethodFields()`.
+- `PaymentMethod::METHOD_BLOCK_FIELDS` and `DIRECT_METHOD_PAYMENT_FIELDS` include `mealCard`, `openBanking` and `shoppingLoan` (same as the Node SDK).
+- Split payments: `SplitPaymentRequest::LEG_BLOCK_FIELDS` (`mobileBilling`, `wallet`, `promissoryNote`) is the leg's own block list; meal card, open banking and shopping loan are refused as a leg before sending.
+- Redirect wallets (`WALLET` with `COMPAY_PAYCELL_WALLET`, `COMPAY_FASTPAY`, `COMPAY_PASSO_WALLET`) need no SDK change; README documents the flow, the `payment.provider_pending` webhook (do not deliver the order) and which methods can be refunded.
+
 ## 1.4.0 — 2026-11-12
 
 - Basket items: optional `productCategory`, the Lunixi product category (`ProductCategory`, 40 codes, e.g. `MOBILE_PHONE`). Used by payment methods with legal installment limits (e.g. shopping loan) and other platform features. Accepted on every endpoint that takes `basketItems` (checkout intent, direct 2D/3D, marketplace); an unknown value is answered with 400, without it nothing changes. `BasketItem` used to drop the key; it now sends it (a non-empty string; `null` = not sent).

@@ -15,6 +15,9 @@ final class PaymentMethodInfo
     /** @var PaymentMethodProvider[] */
     private array $providers;
 
+    /** @var PaymentMethodBank[] */
+    private array $banks;
+
     /** @param array<string,mixed> $data */
     public function __construct(array $data)
     {
@@ -23,6 +26,10 @@ final class PaymentMethodInfo
         $this->providers = array_map(
             static fn ($provider): PaymentMethodProvider => new PaymentMethodProvider(is_array($provider) ? $provider : []),
             array_values(is_array($data['providers'] ?? null) ? $data['providers'] : [])
+        );
+        $this->banks = array_map(
+            static fn ($bank): PaymentMethodBank => new PaymentMethodBank(is_array($bank) ? $bank : []),
+            array_values(is_array($data['banks'] ?? null) ? $data['banks'] : [])
         );
     }
 
@@ -37,7 +44,7 @@ final class PaymentMethodInfo
         return (string) ($this->data['category'] ?? '');
     }
 
-    /** Name of the method block in the request body (`mobileBilling`, `wallet`, `card`). */
+    /** Name of the method block in the request body (`mobileBilling`, `wallet`, `openBanking`, `card` …). */
     public function blockName(): string
     {
         return (string) ($this->data['blockName'] ?? '');
@@ -137,6 +144,30 @@ final class PaymentMethodInfo
         foreach ($this->providers as $provider) {
             if ($provider->providerCode() === $providerCode) {
                 return $provider;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return PaymentMethodBank[] Only OPEN_BANKING and SHOPPING_LOAN; empty for
+     *   other methods. The banks open in the agreement permissions of the
+     *   merchant's connections, sorted by name. Send the chosen bankCode();
+     *   `providerCode` may be null and the platform then picks a connected
+     *   provider that offers the bank. A bank not open anywhere is refused
+     *   with 422 `payment.method.bank_not_enabled`.
+     */
+    public function banks(): array
+    {
+        return $this->banks;
+    }
+
+    public function bank(string $bankCode): ?PaymentMethodBank
+    {
+        foreach ($this->banks as $bank) {
+            if ($bank->bankCode() === $bankCode) {
+                return $bank;
             }
         }
 

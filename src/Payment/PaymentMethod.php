@@ -42,7 +42,22 @@ final class PaymentMethod
      * without a block here cannot be paid yet; PaymentClient::listPaymentMethods()
      * lists only the methods that can.
      */
-    public const METHOD_BLOCK_FIELDS = ['mobileBilling', 'wallet', 'promissoryNote'];
+    public const METHOD_BLOCK_FIELDS = [
+        'mobileBilling', 'wallet', 'promissoryNote', 'mealCard', 'openBanking', 'shoppingLoan', 'bankTransfer',
+    ];
+
+    /**
+     * The "Other banks" option of a BANK_TRANSFER payment's `bankCode` field:
+     * the buyer pays by EFT/FAST from a bank that is not listed.
+     */
+    public const BANK_TRANSFER_OTHER_BANKS_CODE = '9999';
+
+    /**
+     * Most basket items of a shopping-loan payment (SHOPPING_LOAN). The basket
+     * is required: the bank sets the loan term from the items' product
+     * categories (`productCategory`).
+     */
+    public const SHOPPING_LOAN_MAX_BASKET_ITEMS = 100;
 
     /** Fields that belong to a card payment only (`paymentMethod: CARD`). */
     public const CARD_ONLY_FIELDS = ['card', 'installment', 'installmentQuoteToken', 'force3D'];
@@ -53,7 +68,7 @@ final class PaymentMethod
         'paymentGroup', 'callbackUrl', 'locale', 'description', 'customerId', 'preauth',
         'buyer', 'shippingAddress', 'billingAddress', 'basketItems', 'card', 'installment',
         'installmentQuoteToken', 'force3D', 'metadata', 'mobileBilling', 'wallet',
-        'promissoryNote',
+        'promissoryNote', 'mealCard', 'openBanking', 'shoppingLoan', 'bankTransfer',
     ];
 
     /**
@@ -118,6 +133,30 @@ final class PaymentMethod
         }
 
         return $providerCode;
+    }
+
+    /**
+     * A shopping-loan payment needs the basket (1 to 100 items): the bank sets
+     * the loan term from it. Other methods are not checked here.
+     *
+     * @internal
+     * @param mixed $basketItems
+     */
+    public static function assertShoppingLoanBasket(string $paymentMethod, $basketItems): void
+    {
+        if ($paymentMethod !== self::SHOPPING_LOAN) {
+            return;
+        }
+        if (!is_array($basketItems) || $basketItems === []) {
+            throw new ConfigurationException('paymentMethod SHOPPING_LOAN requires basketItems: the bank sets the loan term from the basket.');
+        }
+        if (count($basketItems) > self::SHOPPING_LOAN_MAX_BASKET_ITEMS) {
+            throw new ConfigurationException(sprintf(
+                'paymentMethod SHOPPING_LOAN takes at most %d basket items; got %d.',
+                self::SHOPPING_LOAN_MAX_BASKET_ITEMS,
+                count($basketItems)
+            ));
+        }
     }
 
     /**

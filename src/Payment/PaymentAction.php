@@ -97,6 +97,20 @@ final class PaymentAction
         return is_string($name) && $name !== '' ? $name : null;
     }
 
+    /**
+     * DISPLAY of a BANK_TRANSFER payment: the transfer instruction to show the
+     * buyer — bankCode, bankName, holderName, iban, amountMinor, currency,
+     * paymentCode (to be written in the description), expiresAt, otherBank.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function bankTransfer(): ?array
+    {
+        $instruction = $this->data['bankTransfer'] ?? null;
+
+        return is_array($instruction) ? $instruction : null;
+    }
+
     /** The provider asked for strong authentication (information only). */
     public function stepUpRequired(): bool
     {
