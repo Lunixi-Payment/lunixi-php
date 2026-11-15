@@ -2,6 +2,10 @@
 
 All notable changes to `lunixi/php-sdk`.
 
+## 1.6.0 — 2026-11-16
+
+- Commerce (`CheckoutService::reconcile`): a signed event for another payment of the same order, such as a late bank transfer the platform accepted as a new captured payment, no longer fails with "Webhook payment does not match the persisted attempt" (which made deliveries retry until dead-lettered). The SDK verifies the payment with an authenticated GET (merchant, order, currency, amount). If money was captured, `$apply` receives a `review` decision with `reviewReason` `PaymentDecision::REVIEW_LINKED_PAYMENT` (`isLinkedPayment()`); it is never `paid`, the bound attempt stays unchanged and the merchant decides. Without money the event is consumed and nothing changes. `PaymentDecision::REVIEW_ORDER_CLOSED` is for adapters that receive money for an order the store no longer accepts.
+
 ## 1.5.0 — 2026-11-15
 
 - Para Transferi (`BANK_TRANSFER`, havale / EFT / FAST): `withMethodFields(PaymentMethod::BANK_TRANSFER, null, ['bankCode' => '0062'])` sends the `bankTransfer` block (`PaymentMethod::BANK_TRANSFER_OTHER_BANKS_CODE` `'9999'` = other banks); a provider code throws `ConfigurationException`. The result carries a `DISPLAY` action: `PaymentAction::bankTransfer()` is the transfer instruction (bank, holder name, IBAN, amount, `paymentCode`, `expiresAt`, `otherBank`). Exceptions: `PaymentClient::listBankTransferExceptions($environment, $status, $limit)`, `acceptBankTransferException($id)`, `markBankTransferExceptionRefunded($id)` (signed; decisions need `payment:refund`); constants `BankTransferException` (kinds, statuses) and `Lunixi\Sdk\Payment\BankTransferEvents` (`payment.bank_transfer.*`, not Bank Connect's outgoing-transfer events).

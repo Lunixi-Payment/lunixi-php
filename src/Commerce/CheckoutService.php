@@ -223,7 +223,7 @@ final class CheckoutService
         $candidate = $r['paymentId'];
         if ($event !== null) {
             $id = self::eventPaymentId($event);
-            if ($candidate !== '' && $id !== $candidate) { throw new \RuntimeException('Webhook payment does not match the persisted attempt.'); }
+            if ($candidate !== '' && $id !== $candidate) { return $this->reconcileLinkedPayment($orderKey, $r, $id, $event, $apply); }
             $candidate = $id;
         }
         if ($candidate === '') { throw new \RuntimeException('An authenticated webhook or bound payment is required for recovery.'); }
@@ -268,6 +268,39 @@ final class CheckoutService
             $current['splitId'] = $decision->splitId;
             $this->store->save($orderKey, $current);
             return $decision;
+        });
+    }
+
+    /**
+     * A signed event for ANOTHER payment of the same order: a late bank transfer
+     * the platform accepted as a new captured payment, or a delayed event of an
+     * earlier attempt. The authenticated GET must prove merchant, order, currency
+     * and amount. Money on it becomes a `review` decision (never `paid`), so the
+     * merchant decides; without money the event is consumed and nothing changes.
+     * The bound attempt stays as it is.
+     * @param array<string,mixed> $r
+     */
+    private function reconcileLinkedPayment(string $orderKey, array $r, string $paymentId, WebhookEvent $event, callable $apply): PaymentDecision
+    {
+        $response = $this->client->api()->request('GET', '/api/v1/payments/' . rawurlencode($paymentId));
+        $linked = PaymentEvidence::evaluate(OrderSnapshot::fromArray($r['snapshot']), $paymentId, $response);
+        return $this->store->transaction($orderKey, function () use ($orderKey, $r, $paymentId, $linked, $event, $apply): PaymentDecision {
+            $current = $this->store->load($orderKey);
+            if ($current === null || $current['key'] !== $r['key'] || $current['paymentId'] === $paymentId) { throw new \RuntimeException('Checkout changed during reconciliation.'); }
+            $hash = $event->rawBodyHash();
+            if ($hash === null) { throw new \RuntimeException('A verified raw-body event is required.'); }
+            if (!$this->store->claimEvent($r['snapshot']['merchantId'], $event->id(), $hash)) { return self::storedDecision($current); }
+            $previous = $current['linkedPayments'][$paymentId] ?? null;
+            $current['linkedPayments'][$paymentId] = ['state' => $linked->state, 'gatewayStatus' => $linked->gatewayStatus, 'capturedAmount' => $linked->capturedAmount, 'refundedAmount' => $linked->refundedAmount, 'observedAt' => time()];
+            if (Money::compare($linked->capturedAmount, '0') <= 0) {
+                $this->store->save($orderKey, $current);
+                return self::storedDecision($current);
+            }
+            $review = new PaymentDecision('review', $paymentId, $linked->chargedAmount, $linked->refundedAmount, null, $linked->capturedAmount, $linked->gatewayStatus, PaymentDecision::REVIEW_LINKED_PAYMENT);
+            if (!is_array($previous) || ($previous['capturedAmount'] ?? '0') !== $linked->capturedAmount || ($previous['refundedAmount'] ?? '0') !== $linked->refundedAmount) { $apply($review); }
+            $current['reviewReason'] = PaymentDecision::REVIEW_LINKED_PAYMENT;
+            $this->store->save($orderKey, $current);
+            return $review;
         });
     }
 

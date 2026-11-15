@@ -325,6 +325,54 @@ final class CommerceTest extends TestCase
         try { $service->reconcile('123', static function (): void {}, $this->verifiedEvent($service, ['intentId' => 'pi-1', 'paymentId' => 'another-payment'])); self::fail('Accepted conflicting identities.'); }
         catch (\RuntimeException $expected) { self::assertCount(1, $http->calls); }
     }
+    private function linkedPayment(string $status, string $orderId = 'OC-123'): array
+    {
+        $p = $this->payment($status); $p['data']['id'] = 'pi-late'; $p['data']['orderId'] = $orderId;
+        return $p;
+    }
+    public function testLateLinkedPaymentForTheSameOrderBecomesAReviewOnceAndKeepsTheBoundAttempt(): void
+    {
+        [$service, $http, $store, $db] = $this->service();
+        $http->pushJson(201, ['data' => ['paymentId' => 'pi-1', 'token' => 'browser-token']]);
+        $service->start('123', $this->order(), 'https://shop.example/return');
+        $event = $this->verifiedEvent($service, ['paymentId' => 'pi-late']);
+        $reviews = [];
+        for ($i = 0; $i < 2; ++$i) {
+            $http->pushJson(200, $this->linkedPayment('CAPTURED'));
+            $decision = $service->reconcile('123', static function ($decision) use (&$reviews): void { $reviews[] = $decision; }, $event);
+        }
+        self::assertCount(1, $reviews);
+        self::assertSame('review', $reviews[0]->state);
+        self::assertTrue($reviews[0]->isLinkedPayment());
+        self::assertSame('pi-late', $reviews[0]->paymentId);
+        self::assertSame('1990', $reviews[0]->capturedAmount);
+        self::assertFalse($decision->isPaid());
+        $record = $store->transaction('123', fn () => $store->load('123'));
+        self::assertSame('pi-1', $record['paymentId']);
+        self::assertSame('1990', $record['linkedPayments']['pi-late']['capturedAmount']);
+        self::assertSame(1, (int) $db->query('SELECT COUNT(*) FROM lunixi_events')->fetchColumn());
+    }
+    public function testLinkedPaymentWithoutMoneyIsConsumedWithoutTouchingTheOrder(): void
+    {
+        [$service, $http] = $this->service();
+        $http->pushJson(201, ['data' => ['paymentId' => 'pi-1', 'token' => 'browser-token']]);
+        $service->start('123', $this->order(), 'https://shop.example/return');
+        $http->pushJson(200, $this->linkedPayment('EXPIRED'));
+        $applied = false;
+        $decision = $service->reconcile('123', static function () use (&$applied): void { $applied = true; }, $this->verifiedEvent($service, ['paymentId' => 'pi-late']));
+        self::assertFalse($applied);
+        self::assertSame('pi-1', $decision->paymentId);
+        self::assertNull($decision->reviewReason);
+    }
+    public function testLinkedPaymentOfAnotherOrderIsRejectedWithoutConsumingTheEvent(): void
+    {
+        [$service, $http, , $db] = $this->service();
+        $http->pushJson(201, ['data' => ['paymentId' => 'pi-1', 'token' => 'browser-token']]);
+        $service->start('123', $this->order(), 'https://shop.example/return');
+        $http->pushJson(200, $this->linkedPayment('CAPTURED', 'OC-999'));
+        try { $service->reconcile('123', static function (): void { self::fail('Applied a foreign payment.'); }, $this->verifiedEvent($service, ['paymentId' => 'pi-late'])); self::fail('Accepted a payment of another order.'); }
+        catch (\RuntimeException $expected) { self::assertSame(0, (int) $db->query('SELECT COUNT(*) FROM lunixi_events')->fetchColumn()); }
+    }
     public function testSecretBoxAuthenticatesCiphertextAndBrowserJsonEscapesScriptEndTags(): void
     {
         $session = new CheckoutSession('pi-1', '</script><script>alert(1)</script>', 'https://pay.lunixi.com/payment/backend-page-token-123');
