@@ -8,15 +8,20 @@ use Lunixi\Sdk\Exception\ConfigurationException;
 
 /**
  * Buyer details (matches the gateway BuyerDto). Required: name, surname,
- * identityNumber, email, gsmNumber, city, country, zipCode, ip. Optional:
- * id, registrationDate, lastLoginDate, registrationAddress.
+ * identityNumber, email, gsmNumber, city, country, zipCode. Optional: id,
+ * registrationDate, lastLoginDate, registrationAddress and ip.
+ *
+ * `ip` (the buyer's browser IP) is required by every payment endpoint except
+ * the checkout intents (createIntent(), createMarketplaceIntent()): there the
+ * buyer pays on the Lunixi form, which takes the IP from the buyer's browser.
+ * OrderDetails checks it per endpoint.
  */
 final class Buyer
 {
     private const REQUIRED = [
-        'name', 'surname', 'identityNumber', 'email', 'gsmNumber', 'city', 'country', 'zipCode', 'ip',
+        'name', 'surname', 'identityNumber', 'email', 'gsmNumber', 'city', 'country', 'zipCode',
     ];
-    private const OPTIONAL = ['id', 'registrationDate', 'lastLoginDate', 'registrationAddress'];
+    private const OPTIONAL = ['id', 'registrationDate', 'lastLoginDate', 'registrationAddress', 'ip'];
 
     /** @var array<string,string> */
     private array $data;

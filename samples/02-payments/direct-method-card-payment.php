@@ -25,6 +25,7 @@ $request = (new DirectMethodPaymentRequest($amount, 'TRY', 'ORD-DMP-CARD-' . dat
     ->withCallbackUrl(sample_env('LUNIXI_CALLBACK_URL', 'https://merchant.example.com/payments/3d-result'))
     ->withBuyer(sample_buyer())
     ->withBillingAddress(sample_billing_address())
+    ->withShippingAddress(sample_shipping_address())
     ->withBasketItems(sample_basket_items($amount))
     ->withPaymentChannel('WEB')
     ->withPaymentGroup('PRODUCT')

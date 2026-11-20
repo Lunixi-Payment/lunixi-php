@@ -26,6 +26,7 @@ use Lunixi\Sdk\Payment\SplitPaymentResult;
 use Lunixi\Sdk\Payment\SplitPaymentStatus;
 use Lunixi\Sdk\Payment\SplitRefundResult;
 use Lunixi\Sdk\Tests\Support\FakeHttpClient;
+use Lunixi\Sdk\Tests\Support\OrderDetailsFixture;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -58,11 +59,11 @@ final class SplitPaymentTest extends TestCase
 
     private function cardAndMobileBilling(): SplitPaymentRequest
     {
-        return (new SplitPaymentRequest('100000', 'try', 'cuk_abc123'))
+        return OrderDetailsFixture::complete((new SplitPaymentRequest('100000', 'try', 'cuk_abc123'))
             ->withOrderId('order-2026-001')
             ->withCallbackUrl('https://merchant.example/split-return')
             ->addCardLeg('ct_vault_1', '60000', true)
-            ->addMethodLeg(PaymentMethod::MOBILE_BILLING, 'PAYCELL_MOBILE_BILLING', '40000', ['gsmNumber' => '+905321234567']);
+            ->addMethodLeg(PaymentMethod::MOBILE_BILLING, 'PAYCELL_MOBILE_BILLING', '40000', ['gsmNumber' => '+905321234567']), '100000');
     }
 
     /** @return array<string,mixed> */
@@ -97,6 +98,9 @@ final class SplitPaymentTest extends TestCase
             'ownerRef' => 'cuk_abc123',
             'orderId' => 'order-2026-001',
             'callbackUrl' => 'https://merchant.example/split-return',
+            'buyer' => OrderDetailsFixture::BUYER,
+            'billingAddress' => OrderDetailsFixture::ADDRESS,
+            'basketItems' => [OrderDetailsFixture::basketItemArray('100000')],
             'legs' => [
                 ['cardToken' => 'ct_vault_1', 'amount' => '60000', 'force3D' => true],
                 [
@@ -110,10 +114,10 @@ final class SplitPaymentTest extends TestCase
 
     public function testEveryKeyTheBuilderEmitsIsAGatewayDtoField(): void
     {
-        $body = (new SplitPaymentRequest('30000', 'TRY', 'cuk_1'))
+        $body = OrderDetailsFixture::complete((new SplitPaymentRequest('30000', 'TRY', 'cuk_1'))
             ->addCardLeg('ct_1', '10000', false, 3, 'iq_1')
             ->addMethodLeg(PaymentMethod::WALLET, 'PAYCELL_WALLET', '10000', ['gsmNumber' => '+905321234567'])
-            ->addMethodLeg(PaymentMethod::PROMISSORY_NOTE, 'EXAMPLE_PROVIDER', '10000', ['noteCount' => 3, 'debtorType' => 'INDIVIDUAL'])
+            ->addMethodLeg(PaymentMethod::PROMISSORY_NOTE, 'EXAMPLE_PROVIDER', '10000', ['noteCount' => 3, 'debtorType' => 'INDIVIDUAL']), '30000', 'PHYSICAL')
             ->toArray();
 
         $this->assertSame([], array_values(array_diff(array_keys($body), SplitPaymentRequest::FIELDS)));
@@ -132,7 +136,7 @@ final class SplitPaymentTest extends TestCase
     {
         $this->expectException(ConfigurationException::class);
         $this->expectExceptionMessage('add up to 90000 but totalAmount is 100000');
-        (new SplitPaymentRequest('100000', 'TRY', 'cuk_1'))->addCardLeg('ct_1', '60000')->addCardLeg('ct_2', '30000')->toArray();
+        OrderDetailsFixture::complete((new SplitPaymentRequest('100000', 'TRY', 'cuk_1'))->addCardLeg('ct_1', '60000')->addCardLeg('ct_2', '30000'), '100000')->toArray();
     }
 
     public function testLegRulesAreCheckedBeforeSending(): void
@@ -150,8 +154,8 @@ final class SplitPaymentTest extends TestCase
             'installment without quote' => static fn () => $base()->addCardLeg('ct_1', '10000', false, 2),
             'installment above 36' => static fn () => $base()->addCardLeg('ct_1', '10000', false, 37, 'iq'),
             'zero amount' => static fn () => $base()->addCardLeg('ct_1', '0'),
-            '3DS without callbackUrl' => static fn () => (new SplitPaymentRequest('10000', 'TRY', 'cuk_1'))->addCardLeg('ct_1', '10000', true)->toArray(),
-            'no legs' => static fn () => (new SplitPaymentRequest('10000', 'TRY', 'cuk_1'))->toArray(),
+            '3DS without callbackUrl' => static fn () => OrderDetailsFixture::complete((new SplitPaymentRequest('10000', 'TRY', 'cuk_1'))->addCardLeg('ct_1', '10000', true), '10000')->toArray(),
+            'no legs' => static fn () => OrderDetailsFixture::complete(new SplitPaymentRequest('10000', 'TRY', 'cuk_1'), '10000')->toArray(),
             'empty ownerRef' => static fn () => new SplitPaymentRequest('10000', 'TRY', ' '),
             'plain http callback missing scheme' => static fn () => $base()->withCallbackUrl('merchant.example/return'),
         ];
@@ -164,7 +168,7 @@ final class SplitPaymentTest extends TestCase
             }
         }
 
-        $six = new SplitPaymentRequest('6000', 'TRY', 'cuk_1');
+        $six = OrderDetailsFixture::complete(new SplitPaymentRequest('6000', 'TRY', 'cuk_1'), '6000');
         for ($i = 0; $i < 6; $i++) {
             $six->addCardLeg('ct_' . $i, '1000');
         }
@@ -440,6 +444,9 @@ final class SplitPaymentTest extends TestCase
         ], (new \ReflectionClass(CheckoutFormErrorCode::class))->getConstants());
         $this->assertSame('payment.split.leg_events', SplitPaymentEvents::LEG_EVENTS_SUBSCRIPTION);
         $this->assertSame('PARENT', PaymentSplitRef::ROLE_PARENT);
-        $this->assertSame(['totalAmount', 'currency', 'ownerRef', 'legs', 'orderId', 'ownerScope', 'callbackUrl'], SplitPaymentRequest::FIELDS);
+        $this->assertSame([
+            'totalAmount', 'currency', 'ownerRef', 'legs', 'orderId', 'ownerScope', 'callbackUrl',
+            'buyer', 'billingAddress', 'shippingAddress', 'basketItems',
+        ], SplitPaymentRequest::FIELDS);
     }
 }

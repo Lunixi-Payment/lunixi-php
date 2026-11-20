@@ -17,6 +17,7 @@ use Lunixi\Sdk\Payment\PaymentActionType;
 use Lunixi\Sdk\Payment\PaymentClient;
 use Lunixi\Sdk\Payment\PaymentMethod;
 use Lunixi\Sdk\Tests\Support\FakeHttpClient;
+use Lunixi\Sdk\Tests\Support\OrderDetailsFixture;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -88,8 +89,8 @@ final class BankTransferTest extends TestCase
                 ],
             ],
         ]);
-        $request = (new DirectMethodPaymentRequest('125000', 'TRY', 'ORDER-2041'))
-            ->withMethodFields(PaymentMethod::BANK_TRANSFER, null, ['bankCode' => '0062']);
+        $request = OrderDetailsFixture::complete((new DirectMethodPaymentRequest('125000', 'TRY', 'ORDER-2041'))
+            ->withMethodFields(PaymentMethod::BANK_TRANSFER, null, ['bankCode' => '0062']), '125000');
 
         $result = (new PaymentClient($api))->directMethodPayment($request, 'pay:ORDER-2041');
 

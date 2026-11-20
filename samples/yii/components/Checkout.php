@@ -7,6 +7,7 @@ namespace app\components;
 use Lunixi\Sdk\LunixiClient;
 use Lunixi\Sdk\Commerce\{CheckoutService, CheckoutSession, OrderSnapshot, PaymentDecision, SecretBox, Money};
 use Lunixi\Sdk\Http\HttpClientInterface;
+use Lunixi\Sdk\Payment\{Address, BasketItem, Buyer};
 
 /** Application ownership and persistence glue; all payment proof/retry rules are shared SDK code. */
 final class Checkout
@@ -30,14 +31,17 @@ final class Checkout
         }
         return $row;
     }
-    public function start(int $id, int $owner): CheckoutSession
+    /** `$buyerIp`: the client IP of the checkout request (yii\web\Request::$userIP); empty = REMOTE_ADDR. */
+    public function start(int $id, int $owner, string $buyerIp = ''): CheckoutSession
     {
         $order = $this->order($id, $owner);
         $this->scope($order);
         if ($order['state'] !== 'pending') {
             throw new \DomainException('Order is not payable.');
         }
-        return $this->service->start(self::key($id), $this->snapshot($order), $this->settings->baseUrl . '/payments/' . $id . '/return', $order['mode'] === 'hosted', (bool) $order['preauth'], 'en');
+        $buyerIp = $buyerIp !== '' ? $buyerIp : (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+        $snapshot = $this->withOrderDetails($this->snapshot($order), $order, $buyerIp);
+        return $this->service->start(self::key($id), $snapshot, $this->settings->baseUrl . '/payments/' . $id . '/return', $order['mode'] === 'hosted', (bool) $order['preauth'], 'en');
     }
     /** @param array<string,string> $headers */
     public function webhook(string $body, array $headers): void
@@ -92,6 +96,64 @@ final class Checkout
     private function snapshot(array $order): OrderSnapshot
     {
         return new OrderSnapshot($order['merchant_id'], self::key((int) $order['id']), Money::fromStorage($order['amount']), $order['currency']);
+    }
+    /**
+     * Adds the order details every payment requires from the order record
+     * (Schema::ORDER_DETAIL_COLUMNS): the buyer, the billing address, the
+     * basket and, for a PHYSICAL order, the shipping address (the billing
+     * address when no shipping address is stored). They are not part of the
+     * snapshot identity (toArray()/fingerprint()), so apply() keeps comparing
+     * the reserved snapshot as before. `ip` is the buyer's browser IP from the
+     * checkout request. The example order is one line for the order total; with
+     * order lines, map each line so the `price` values add up to the amount. A
+     * missing value stops the checkout with a ConfigurationException before
+     * anything is reserved or sent.
+     *
+     * @param array<string,mixed> $order
+     */
+    private function withOrderDetails(OrderSnapshot $snapshot, array $order, string $buyerIp): OrderSnapshot
+    {
+        $text = static fn (string $column): string => trim((string) ($order[$column] ?? ''));
+        $fullName = trim($text('buyer_name') . ' ' . $text('buyer_surname'));
+        $billing = new Address([
+            'contactName' => $text('billing_contact') !== '' ? $text('billing_contact') : $fullName,
+            'address' => $text('billing_address'),
+            'city' => $text('billing_city'),
+            'country' => $text('billing_country'),
+            'zipCode' => $text('billing_zip'),
+        ]);
+        $snapshot = $snapshot
+            ->withBuyer(new Buyer([
+                'name' => $text('buyer_name'),
+                'surname' => $text('buyer_surname'),
+                'identityNumber' => $text('buyer_identity_number'),
+                'email' => $text('buyer_email'),
+                'gsmNumber' => $text('buyer_gsm'),
+                'city' => $text('billing_city'),
+                'country' => $text('billing_country'),
+                'zipCode' => $text('billing_zip'),
+                'ip' => $buyerIp,
+            ]))
+            ->withBillingAddress($billing);
+        $itemType = $text('item_type') === BasketItem::TYPE_PHYSICAL ? BasketItem::TYPE_PHYSICAL : BasketItem::TYPE_VIRTUAL;
+        $snapshot = $snapshot->withBasketItems([new BasketItem([
+            'id' => (string) $order['id'],
+            'price' => $snapshot->amount(),
+            'name' => 'Order #' . $order['id'],
+            'category1' => 'General',
+            'itemType' => $itemType,
+        ])]);
+        if ($itemType !== BasketItem::TYPE_PHYSICAL) {
+            return $snapshot;
+        }
+
+        return $snapshot->withShippingAddress($text('shipping_address') === '' ? $billing : new Address([
+            'contactName' => $text('shipping_contact') !== '' ? $text('shipping_contact') : $fullName,
+            'address' => $text('shipping_address'),
+            'city' => $text('shipping_city'),
+            'country' => $text('shipping_country'),
+            'zipCode' => $text('shipping_zip'),
+        ]));
     }
     public static function key(int $id): string
     {

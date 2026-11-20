@@ -8,6 +8,10 @@ declare(strict_types=1);
  * payment completes, announced by the `wallet.topup.completed` webhook. Do not
  * credit anything on your side from this response. Needs
  * `wallet:operation:intervene`.
+ *
+ * The card payment provider requires the buyer and the billing address (plain
+ * arrays; `buyer.ip` is the user's browser IP). A missing field is answered
+ * with 400 `payment.order.field_required`. `shippingAddress` is optional.
  */
 
 require_once __DIR__ . '/../_common/bootstrap.php';
@@ -19,6 +23,9 @@ $topup = sample_client()->wallet()->topups->startCard([
     'amount' => '25000', // 250.00 TRY
     'currency' => 'TRY',
     'returnUrl' => (string) sample_env('LUNIXI_CALLBACK_URL', 'https://merchant.example.com/wallet/topup/return'),
+    // Buyer / Address validate the required fields; toArray() gives the arrays the route takes.
+    'buyer' => sample_buyer()->toArray(),
+    'billingAddress' => sample_billing_address()->toArray(),
 ], 'wallet-topup-' . $topupRef);
 
 sample_print($topup);

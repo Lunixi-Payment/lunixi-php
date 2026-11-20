@@ -16,6 +16,7 @@ use Lunixi\Sdk\Marketplace\MarketplaceClient;
 use Lunixi\Sdk\Marketplace\MarketplaceSeller;
 use Lunixi\Sdk\Payment\CreateIntentRequest;
 use Lunixi\Sdk\Tests\Support\FakeHttpClient;
+use Lunixi\Sdk\Tests\Support\OrderDetailsFixture;
 use PHPUnit\Framework\TestCase;
 
 final class MarketplaceClientTest extends TestCase
@@ -43,7 +44,7 @@ final class MarketplaceClientTest extends TestCase
         [$mp, $http] = $this->make();
         $http->pushJson(201, ['success' => true, 'paymentId' => 'pi_1', 'token' => 'tok_1', 'checkoutFormContent' => '<script></script>']);
 
-        $req = new CreateIntentRequest('100000', 'TRY', 'WC-7');
+        $req = OrderDetailsFixture::complete(new CreateIntentRequest('100000', 'TRY', 'WC-7'), '100000');
         $sellers = [
             new MarketplaceSeller('d_alice', '60000'),
             (new MarketplaceSeller('d_bob', '40000'))->withScenario(['type' => 'DYNAMIC_RATE', 'ratePercent' => '5']),
@@ -65,6 +66,8 @@ final class MarketplaceClientTest extends TestCase
         $this->assertSame('d_alice', $body['sellers'][0]['subDealerId']);
         $this->assertSame('60000', $body['sellers'][0]['amountMinor']); // minor units as string
         $this->assertSame('DYNAMIC_RATE', $body['sellers'][1]['scenario']['type']);
+        $this->assertSame(OrderDetailsFixture::BUYER, $body['buyer']);
+        $this->assertSame([OrderDetailsFixture::basketItemArray('100000')], $body['basketItems']);
     }
 
     public function testCreateDealerAndOnboardingToken(): void
@@ -140,7 +143,7 @@ final class MarketplaceClientTest extends TestCase
         $http->pushJson(200, ['success' => false, 'code' => 'marketplace.payment.seller_not_eligible', 'message' => 'seller not eligible']);
 
         $this->expectException(\Lunixi\Sdk\Exception\ApiException::class);
-        $mp->createCheckoutIntent(new CreateIntentRequest('1000', 'TRY', 'o1'), [new MarketplaceSeller('d_1', '1000')]);
+        $mp->createCheckoutIntent(OrderDetailsFixture::complete(new CreateIntentRequest('1000', 'TRY', 'o1'), '1000'), [new MarketplaceSeller('d_1', '1000')]);
     }
 
     public function testActivateDealerRoute(): void

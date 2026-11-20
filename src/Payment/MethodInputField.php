@@ -21,6 +21,8 @@ final class MethodInputField
     public const TYPE_CONSENT = 'CONSENT';
     /** 10-digit Turkish tax number with checksum. */
     public const TYPE_VKN = 'VKN';
+    /** Turkish IBAN; spaces and dashes are removed and the mod-97 check is applied by the server. */
+    public const TYPE_IBAN = 'IBAN';
     /** `['provinceCode' => …, 'districtCode' => …, 'neighborhoodCode' => …, 'line' => …]`; codes from ReferenceClient. */
     public const TYPE_ADDRESS = 'ADDRESS';
     /** A list of associative arrays, each with the fields of itemFields(). */

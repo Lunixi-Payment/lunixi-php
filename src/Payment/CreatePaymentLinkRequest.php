@@ -28,9 +28,12 @@ final class CreatePaymentLinkRequest
     public const ENVIRONMENT_TEST = 'TEST';
     public const ENVIRONMENT_LIVE = 'LIVE';
 
-    /** Values of each `withBuyerFields()` entry. */
-    public const BUYER_FIELD_HIDDEN = 'HIDDEN';
-    public const BUYER_FIELD_OPTIONAL = 'OPTIONAL';
+    /**
+     * The only value of a `withBuyerFields()` entry: payment providers require
+     * the buyer, the identity number and the billing address, so the link page
+     * always asks all five fields (the gateway answers any other value with 400;
+     * a field left out means REQUIRED).
+     */
     public const BUYER_FIELD_REQUIRED = 'REQUIRED';
 
     /** Keys of `withBuyerFields()`. */
@@ -325,11 +328,11 @@ final class CreatePaymentLinkRequest
     /**
      * Which standard buyer fields the payment page asks for.
      *
-     * @param array<string,string> $fields Keys from BUYER_FIELDS; values BUYER_FIELD_*.
+     * @param array<string,string> $fields Keys from BUYER_FIELDS; value BUYER_FIELD_REQUIRED.
      */
     public function withBuyerFields(array $fields): self
     {
-        $allowed = [self::BUYER_FIELD_HIDDEN, self::BUYER_FIELD_OPTIONAL, self::BUYER_FIELD_REQUIRED];
+        $allowed = [self::BUYER_FIELD_REQUIRED];
         foreach ($fields as $name => $requirement) {
             if (!in_array($name, self::BUYER_FIELDS, true)) {
                 throw new ConfigurationException(

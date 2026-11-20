@@ -14,11 +14,12 @@ use Lunixi\Sdk\Commerce\SecretBox;
 use Lunixi\Sdk\Configuration;
 use Lunixi\Sdk\LunixiClient;
 use Lunixi\Sdk\Tests\Support\FakeHttpClient;
+use Lunixi\Sdk\Tests\Support\OrderDetailsFixture;
 use PHPUnit\Framework\TestCase;
 
 final class CommerceTest extends TestCase
 {
-    private function order(): OrderSnapshot { return new OrderSnapshot('merchant-1', 'OC-123', '1990', 'TRY'); }
+    private function order(): OrderSnapshot { return OrderDetailsFixture::snapshot(new OrderSnapshot('merchant-1', 'OC-123', '1990', 'TRY')); }
     private function payment(string $status = 'CAPTURED', string $amount = '1990'): array
     {
         return ['data' => ['id' => 'pi-1', 'merchantId' => 'merchant-1', 'orderId' => 'OC-123', 'amount' => $amount, 'currency' => 'TRY', 'status' => $status], 'details' => ['capturedAmount' => $status === 'CAPTURED' ? (string) $amount : '0', 'refundedAmount' => '0']];
@@ -112,7 +113,7 @@ final class CommerceTest extends TestCase
         $http->push(new \RuntimeException('timeout'));
         try { $service->start('123', $this->order(), 'https://shop.example/return'); } catch (\RuntimeException $expected) {}
         $this->expectException(\RuntimeException::class);
-        $service->start('123', new OrderSnapshot('merchant-1', 'OC-123', '2990', 'TRY'), 'https://shop.example/return');
+        $service->start('123', OrderDetailsFixture::snapshot(new OrderSnapshot('merchant-1', 'OC-123', '2990', 'TRY')), 'https://shop.example/return');
     }
     public function testWebhookAndOrderUpdateRollbackTogetherThenDuplicateIsHarmless(): void
     {

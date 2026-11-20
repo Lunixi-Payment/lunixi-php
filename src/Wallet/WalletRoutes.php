@@ -287,12 +287,14 @@ final class WalletRoutes
         ],
 
         // Top-ups
+        // The payment provider requires the buyer and billing address (`buyer.ip`: the user's browser IP);
+        // a missing field is 400 `payment.order.field_required` with the paths in `details.fields`.
         'startCardTopup' => [
             'method' => 'POST',
             'path' => '/api/v1/wallet/topups/card',
             'idempotencyKey' => true,
-            'required' => ['creditWalletAccountId', 'amount', 'currency'],
-            'optional' => ['fundingMerchantId', 'savedCardUserKey', 'savedCardToken', 'savedConsumerToken', 'savedPublicCardStorageToken', 'returnUrl'],
+            'required' => ['creditWalletAccountId', 'amount', 'currency', 'buyer', 'billingAddress'],
+            'optional' => ['fundingMerchantId', 'savedCardUserKey', 'savedCardToken', 'savedConsumerToken', 'savedPublicCardStorageToken', 'returnUrl', 'shippingAddress'],
         ],
         'getTopup' => [
             'method' => 'GET',

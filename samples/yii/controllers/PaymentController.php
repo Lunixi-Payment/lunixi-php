@@ -20,7 +20,7 @@ final class PaymentController extends \yii\web\Controller
             $service = $this->checkout();
             $number = $this->id($id);
             $owner = (int) Runtime::web()->user->id;
-            $session = $service->start($number, $owner);
+            $session = $service->start($number, $owner, (string) Runtime::web()->request->userIP);
             $order = $service->order($number, $owner);
             Runtime::web()->response->headers->set('Cache-Control', 'no-store');
             Runtime::web()->response->headers->set('Referrer-Policy', 'no-referrer');

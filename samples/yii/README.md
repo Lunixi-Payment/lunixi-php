@@ -43,7 +43,7 @@ php yii lunixi/setup
 php yii serve --port=8081
 ```
 
-Open `http://localhost:8081/login`, sign in as `alice@example.test` or `bob@example.test` using your supplied password. Only the explicit console setup creates tables/accounts/orders. The private database defaults to `runtime/lunixi.sqlite` outside `web/`; `LUNIXI_DATABASE` can select another private SQLite file. Keep the encryption/cookie keys separate and stable across upgrades; never commit secrets, SQLite files, session files or logs.
+Open `http://localhost:8081/login`, sign in as `alice@example.test` or `bob@example.test` using your supplied password. Only the explicit console setup creates tables/accounts/orders. The private database defaults to `runtime/lunixi.sqlite` outside `web/`; `LUNIXI_DATABASE` can select another private SQLite file. Each order row also carries the order details every payment requires (buyer, billing and shipping address, basket line type; `Schema::ORDER_DETAIL_COLUMNS`); the demo orders use a fictional customer, and the buyer IP comes from the checkout request. A database created before these columns existed must be recreated. Keep the encryption/cookie keys separate and stable across upgrades; never commit secrets, SQLite files, session files or logs.
 
 The example shell file enables **loopback-only development HTTP** with `APP_ENV=dev`, `YII_LOCAL_HTTP=1`. Real TEST checkout needs a public HTTPS server/TLS tunnel and a registered **`https://your-host/webhooks/lunixi`** connection. Set `LUNIXI_APP_URL` accordingly. For deployment point the document root to `web/`, use `APP_ENV=prod`, `YII_LOCAL_HTTP=0`, secure session cookies, HTTPS, trusted host/proxy policy and debug off. The encryption key must not be derived from cookie, private-key, webhook or DB secrets.
 

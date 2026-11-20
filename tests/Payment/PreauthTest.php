@@ -21,6 +21,7 @@ use Lunixi\Sdk\Payment\DirectMethodPaymentRequest;
 use Lunixi\Sdk\Payment\DirectPaymentRequest;
 use Lunixi\Sdk\Payment\PaymentClient;
 use Lunixi\Sdk\Tests\Support\FakeHttpClient;
+use Lunixi\Sdk\Tests\Support\OrderDetailsFixture;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -50,7 +51,7 @@ final class PreauthTest extends TestCase
 
     private function directRequest(): DirectPaymentRequest
     {
-        return new DirectPaymentRequest(
+        $request = new DirectPaymentRequest(
             '1000',
             'TRY',
             'o1',
@@ -68,6 +69,9 @@ final class PreauthTest extends TestCase
                 new BasketItem(['id' => 'i1', 'price' => '1000', 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => BasketItem::TYPE_PHYSICAL]),
             ]
         );
+
+        // A PHYSICAL item ships: the shipping address is part of the required order details.
+        return $request->withShippingAddress(OrderDetailsFixture::address());
     }
 
     /** @return array<string,mixed> */
@@ -153,7 +157,7 @@ final class PreauthTest extends TestCase
         [$api, $http] = $this->api();
         $http->pushJson(201, ['success' => true, 'paymentId' => 'pi_1', 'token' => 'tok_1', 'checkoutFormContent' => '']);
 
-        (new PaymentClient($api))->createIntent((new CreateIntentRequest('1000', 'TRY', 'WC-7'))->withAutoCapture(false), 'idem-7');
+        (new PaymentClient($api))->createIntent(OrderDetailsFixture::complete((new CreateIntentRequest('1000', 'TRY', 'WC-7'))->withAutoCapture(false), '1000'), 'idem-7');
 
         $this->assertStringEndsWith('/api/v1/payments/intents', $http->lastCall()['url']);
         $body = self::body($http);
@@ -175,6 +179,7 @@ final class PreauthTest extends TestCase
         $request = (new DirectMethodPaymentRequest('1000', 'TRY', 'o1'))
             ->withCard(new CardDetails(['cardNumber' => '5400000000000004']))
             ->withPreauth(true);
+        OrderDetailsFixture::complete($request, '1000');
         if ($force3D) {
             $request->withForce3D(true);
         }
@@ -196,7 +201,7 @@ final class PreauthTest extends TestCase
         $http->pushJson(201, ['success' => true, 'paymentId' => 'pi_m', 'token' => 'tok_m', 'checkoutFormContent' => '<script></script>']);
 
         (new MarketplaceClient($api))->createCheckoutIntent(
-            (new CreateIntentRequest('100000', 'TRY', 'WC-8'))->withPreauth(true),
+            OrderDetailsFixture::complete((new CreateIntentRequest('100000', 'TRY', 'WC-8'))->withPreauth(true), '100000'),
             [new MarketplaceSeller('d_alice', '100000')],
             MarketplaceClient::POLICY_ALL_OR_NOTHING,
             'idem-mp-8'

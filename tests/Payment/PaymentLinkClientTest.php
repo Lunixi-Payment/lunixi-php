@@ -420,7 +420,7 @@ final class PaymentLinkClientTest extends TestCase
             ->withEventAt(null)
             ->withButtonLabelKey(CreatePaymentLinkRequest::BUTTON_BUY)
             ->withTermsAcceptanceRequired()
-            ->withBuyerFields(['name' => 'REQUIRED', 'email' => 'REQUIRED', 'phone' => 'OPTIONAL', 'address' => 'HIDDEN', 'identityNumber' => 'HIDDEN'])
+            ->withBuyerFields(['name' => 'REQUIRED', 'email' => 'REQUIRED', 'phone' => 'REQUIRED', 'address' => 'REQUIRED', 'identityNumber' => 'REQUIRED'])
             ->withCustomFields([(new PaymentLinkCustomField('color', 'Renk', PaymentLinkCustomField::TYPE_SELECT))->withOptions(['Mavi', 'Kırmızı'])->withHelpText('h')])
             ->withRecipient(['email' => 'a@example.com'])
             ->withPrefill(['name' => 'Ayşe', 'country' => 'TR'])

@@ -111,6 +111,20 @@ final class PaymentAction
         return is_array($instruction) ? $instruction : null;
     }
 
+    /**
+     * APP_APPROVAL of Request to Pay (OPEN_BANKING): the bank that received the
+     * payment request — bankCode, bankName, maskedIban, expiresAt. The buyer
+     * approves in the banking app; nothing is confirmed.
+     *
+     * @return array<string,string>|null
+     */
+    public function appApproval(): ?array
+    {
+        $approval = $this->data['appApproval'] ?? null;
+
+        return is_array($approval) ? $approval : null;
+    }
+
     /** The provider asked for strong authentication (information only). */
     public function stepUpRequired(): bool
     {

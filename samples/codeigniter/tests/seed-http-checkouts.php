@@ -29,11 +29,13 @@ if ((int) App\Payments\Sql::one($db, 'SELECT COUNT(*) AS total FROM lunixi_attem
     throw new RuntimeException('Expected an unused disposable checkout cache.');
 }
 $db->query('UPDATE orders SET mode=? WHERE id=1', ['hosted']);
-$db->query(
-    'INSERT INTO orders(id,user_id,merchant_id,environment,amount,currency,mode,preauth) VALUES (?,?,?,?,?,?,?,?)',
-    [3, 1, 'native-http-fixture', 'TEST', 1990, 'TRY', 'embedded', 0]
+App\Payments\Schema::insertOrder(
+    $db,
+    ['id' => 3, 'user_id' => 1, 'merchant_id' => 'native-http-fixture', 'environment' => 'TEST', 'amount' => 1990, 'currency' => 'TRY', 'mode' => 'embedded', 'preauth' => 0]
+        + App\Payments\Schema::DEMO_ORDER_DETAILS
 );
 $checkout = new App\Payments\Checkout($db, App\Payments\Settings::fromEnvironment(), new GatewayFixture());
-$checkout->start(1, 1);
-$checkout->start(3, 1);
+// The buyer IP of these offline checkouts: a documentation address (RFC 5737).
+$checkout->start(1, 1, '203.0.113.10');
+$checkout->start(3, 1, '203.0.113.10');
 echo "Offline native checkout cache ready.\n";

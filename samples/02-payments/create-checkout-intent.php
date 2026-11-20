@@ -25,6 +25,8 @@ $request = (new CreateIntentRequest('10050', 'TRY', 'ORD-' . date('YmdHis')))
     ])
     ->withBuyer(sample_buyer())
     ->withBillingAddress(sample_billing_address())
+    // The basket item is PHYSICAL: the shipping address is required too.
+    ->withShippingAddress(sample_shipping_address())
     ->withBasketItems(sample_basket_items('10050'));
 
 $intent = $client->payments()->createIntent($request, sample_idempotency_key('checkout-intent'));

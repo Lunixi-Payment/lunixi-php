@@ -6,7 +6,12 @@ namespace Lunixi\Sdk\Payment;
 
 use Lunixi\Sdk\Exception\ConfigurationException;
 
-/** Body for POST /api/v1/payments/cards (verify-and-store). */
+/**
+ * Body for POST /api/v1/payments/cards (verify-and-store): a 3D Secure
+ * authorization is taken and released, no payment. The buyer and billing
+ * address are required (no basket); the card's later charges take the buyer
+ * from this first payment.
+ */
 final class StoreCardRequest
 {
     /** @var array<string,mixed> */
@@ -31,6 +36,18 @@ final class StoreCardRequest
     public function withCurrency(string $currency): self
     {
         $this->data['currency'] = strtoupper($currency);
+        return $this;
+    }
+
+    public function withBuyer(Buyer $buyer): self
+    {
+        $this->data['buyer'] = $buyer->toArray();
+        return $this;
+    }
+
+    public function withBillingAddress(Address $address): self
+    {
+        $this->data['billingAddress'] = $address->toArray();
         return $this;
     }
 

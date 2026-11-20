@@ -123,6 +123,53 @@ if ($event->matches('payment.*')) {
 }
 ```
 
+### Order details (required)
+
+Payment providers do not start a payment without the buyer, so every payment
+endpoint requires the order details: intents (`createIntent`,
+`createMarketplaceIntent`, marketplace `createCheckoutIntent`),
+`directMethodPayment` (card included), split payments, marketplace card charges
+and card storage (`storeCard`: buyer and billing address only).
+
+- `Buyer`: `name`, `surname`, `identityNumber` (Turkish ID or passport number),
+  `email` (ASCII), `gsmNumber`, `city`, `country`, `zipCode`, `ip` (the buyer's
+  browser IPv4/IPv6 address, not your server's). `createIntent()`,
+  `createMarketplaceIntent()` and `CheckoutService::start()` may leave out
+  `ip`: the buyer pays on the Lunixi form, which takes the IP from the buyer's
+  browser (`OrderDetails::CHECKOUT_INTENT_BUYER_OPTIONAL_FIELDS`).
+- `withBillingAddress(Address)`: `contactName`, `address`, `city`, `country`, `zipCode`.
+- `withBasketItems([...])`: at least one `BasketItem`; the `price` values add up to the amount.
+- `withShippingAddress(Address)`: required when an item is `BasketItem::TYPE_PHYSICAL`.
+- A wallet card top-up takes `buyer` and `billingAddress` too.
+
+The client throws `ConfigurationException` naming the missing paths before
+sending (`OrderDetails::missing($body)` returns the same list). The gateway
+answers a missing field with 400 `OrderFieldErrorCode::FIELD_REQUIRED`
+(`payment.order.field_required`) and an invalid one with `FIELD_INVALID`; the
+response `details` carry `field`, `reason` (`OrderFieldReason`) and `fields`.
+`Commerce\OrderSnapshot` carries the same details (`withBuyer()`,
+`withBillingAddress()`, `withShippingAddress()`, `withBasketItems()`) and
+`CheckoutService::start()` sends them with the intent; they are not part of the
+snapshot fingerprint.
+
+```php
+use Lunixi\Sdk\Payment\{Address, BasketItem, Buyer};
+
+$buyer = new Buyer([
+    'name' => 'Ada', 'surname' => 'Yilmaz', 'identityNumber' => '11111111111', 'email' => 'ada@example.com',
+    'gsmNumber' => '+905350000000', 'city' => 'Istanbul', 'country' => 'Turkey', 'zipCode' => '34000', 'ip' => $buyerIp,
+]);
+$billingAddress = new Address([
+    'contactName' => 'Ada Yilmaz', 'address' => 'Example Street 1', 'city' => 'Istanbul', 'country' => 'Turkey', 'zipCode' => '34000',
+]);
+$basketItems = [new BasketItem([
+    'id' => 'SKU-1', 'name' => 'Gift card', 'category1' => 'Digital', 'itemType' => BasketItem::TYPE_VIRTUAL, 'price' => '1000',
+])];
+```
+
+The examples below reuse `$buyer` and `$billingAddress`; `$basketItems` stands
+for each order's items, whose `price` values add up to that request's amount.
+
 ### Server-side payments
 
 ```php
@@ -134,6 +181,9 @@ $lunixi = LunixiClient::create([ /* baseUrl, keyId, privateKey, environment */ ]
 // 1) Create an intent on the server, hand the token to the browser SDK.
 $intent = $lunixi->payments()->createIntent(
     (new CreateIntentRequest('1000', 'TRY', 'WC-1042'))->withCallbackUrl('https://shop.example/lunixi/return')
+        ->withBuyer($buyer)
+        ->withBillingAddress($billingAddress)
+        ->withBasketItems($basketItems)
 );
 $token = $intent->token(); // → embedded JS SDK renders/submits the form
 
@@ -211,6 +261,9 @@ Without it, or with `withPreauth(false)`, the amount is captured immediately.
 ```php
 $intent = $lunixi->payments()->createIntent(
     (new CreateIntentRequest('1000', 'TRY', 'WC-1042'))->withPreauth(true)
+        ->withBuyer($buyer)
+        ->withBillingAddress($billingAddress)
+        ->withBasketItems($basketItems)
 );
 // later, once the payment is AUTHORIZED:
 $lunixi->payments()->captureRemaining($intent->paymentId(), $stableKey);
@@ -228,10 +281,13 @@ can narrow the choice but never widen it. Without it there is no restriction.
 // At most 3 installments for this order.
 $intent = $lunixi->payments()->createIntent(
     (new CreateIntentRequest('1000', 'TRY', 'WC-1042'))->withEnabledInstallments(1, 2, 3)
+        ->withBuyer($buyer)
+        ->withBillingAddress($billingAddress)
+        ->withBasketItems($basketItems)
 );
 
 // Single payment only (for example gold or gift cards).
-(new CreateIntentRequest('1000', 'TRY', 'WC-1043'))->withEnabledInstallments(1);
+(new CreateIntentRequest('1000', 'TRY', 'WC-1043'))->withEnabledInstallments(1); // + buyer, billing address, basket
 ```
 
 The counts are integers from 1 to 36 and must include 1; a duplicate or an
@@ -269,7 +325,10 @@ $provider = $method->providers()[0];   // the one your buyer picked; inputFields
 // 2) Start the payment (Idempotency-Key required).
 $request = (new DirectMethodPaymentRequest('5000', 'TRY', 'WC-1042'))
     ->withMethodFields(PaymentMethod::MOBILE_BILLING, $provider->providerCode(), ['gsmNumber' => '+905321234567'])
-    ->withCallbackUrl('https://shop.example/lunixi/return');
+    ->withCallbackUrl('https://shop.example/lunixi/return')
+    ->withBuyer($buyer)
+    ->withBillingAddress($billingAddress)
+    ->withBasketItems($basketItems);
 $result = $lunixi->payments()->directMethodPayment($request, $stableKey);
 
 // 3) The buyer must act (HTTP 202): confirm the code, or resend it.
@@ -344,7 +403,10 @@ if (count($method->providers()) > 1) {
 // PLATFORM without a pick: $providerCode stays null; the platform picks the provider.
 
 $request = (new DirectMethodPaymentRequest('5000', 'TRY', 'WC-1043'))
-    ->withMethodFields(PaymentMethod::WALLET, $providerCode, $fields);
+    ->withMethodFields(PaymentMethod::WALLET, $providerCode, $fields)
+    ->withBuyer($buyer)
+    ->withBillingAddress($billingAddress)
+    ->withBasketItems($basketItems);
 ```
 
 #### Open banking and shopping loan
@@ -371,7 +433,10 @@ foreach ($method->banks() as $bank) {
 
 $request = (new DirectMethodPaymentRequest('5000', 'TRY', 'WC-1044'))
     ->withMethodFields(PaymentMethod::OPEN_BANKING, null, ['bankCode' => $bankTheBuyerPicked])
-    ->withCallbackUrl('https://shop.example/lunixi/return');
+    ->withCallbackUrl('https://shop.example/lunixi/return')
+    ->withBuyer($buyer)
+    ->withBillingAddress($billingAddress)
+    ->withBasketItems($basketItems);
 $result = $lunixi->payments()->directMethodPayment($request, $stableKey);
 
 $action = $result->action();
@@ -438,6 +503,9 @@ $quote = $lunixi->payments()->installmentOptions(
 $request = (new SplitPaymentRequest('100000', 'TRY', $cardUserKey))
     ->withOrderId('WC-1050')
     ->withCallbackUrl('https://shop.example/lunixi/return')
+    ->withBuyer($buyer)
+    ->withBillingAddress($billingAddress)
+    ->withBasketItems($basketItems)
     ->addCardLeg($cardAToken, '60000', true)                                         // 3D Secure
     ->addCardLeg($cardBToken, '40000', false, 3, $quote['data']['quoteToken']);      // 3 installments
 
@@ -479,6 +547,9 @@ $splitProvider = static function (string $code) use ($methods): ?string {
 $request = (new SplitPaymentRequest('100000', 'TRY', $cardUserKey))
     ->withOrderId('WC-1051')
     ->withCallbackUrl('https://shop.example/lunixi/return')
+    ->withBuyer($buyer)
+    ->withBillingAddress($billingAddress)
+    ->withBasketItems($basketItems)
     ->addCardLeg($cardAToken, '30000', true)
     ->addCardLeg($cardBToken, '25000', false, 3, $cardBQuoteToken)
     ->addMethodLeg(PaymentMethod::WALLET, (string) $splitProvider(PaymentMethod::WALLET), '20000', ['gsmNumber' => $buyerGsm])
@@ -654,7 +725,9 @@ $request = (new DirectMethodPaymentRequest('300000', 'TRY', 'WC-2001'))
         ['amount' => '100000', 'dueDate' => '2030-01-15'],
         ['amount' => '200000', 'dueDate' => '2030-02-15'],
     ])
-    ->withBuyer($buyer);
+    ->withBuyer($buyer)
+    ->withBillingAddress($billingAddress)
+    ->withBasketItems($basketItems);
 $result = $lunixi->payments()->directMethodPayment($request, $stableKey);   // status CAPTURED, no action
 
 $notes = $lunixi->payments()->getPromissoryNotes($result->paymentId());
@@ -951,7 +1024,9 @@ $order = $insurance->createOrder([
 $premium = InsuranceClient::premiumBasketItem($order, 'Ticket cancellation insurance', 'insurance');
 $intent = $lunixi->payments()->createIntent(
     (new CreateIntentRequest(\Lunixi\Sdk\Commerce\Money::add('100000', $order->premiumAmount()), 'TRY', 'ORD-1042'))
-        ->withBasketItems([$ticket, $premium]) /* buyer, addresses … */,
+        ->withBuyer($buyer)
+        ->withBillingAddress($billingAddress)
+        ->withBasketItems([$ticket, $premium]),
     'checkout-ORD-1042'
 );
 

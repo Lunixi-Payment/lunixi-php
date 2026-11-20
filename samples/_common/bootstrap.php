@@ -60,6 +60,11 @@ function sample_idempotency_key(string $prefix): string
     return $prefix . '-' . bin2hex(random_bytes(12));
 }
 
+/**
+ * The buyer of the order. Every payment requires it (with the billing address and
+ * the basket). `ip` is the buyer's browser IP: the client address of the web
+ * request, or LUNIXI_BUYER_IP when the sample runs from the command line.
+ */
 function sample_buyer(): Buyer
 {
     return new Buyer([
@@ -71,8 +76,19 @@ function sample_buyer(): Buyer
         'city' => sample_env('LUNIXI_BUYER_CITY', 'Istanbul'),
         'country' => sample_env('LUNIXI_BUYER_COUNTRY', 'Turkey'),
         'zipCode' => sample_env('LUNIXI_BUYER_ZIP', '34000'),
-        'ip' => sample_env('LUNIXI_BUYER_IP', '127.0.0.1'),
+        'ip' => sample_buyer_ip(),
     ]);
+}
+
+/** The buyer's browser IP: REMOTE_ADDR of the web request, else LUNIXI_BUYER_IP (command line). */
+function sample_buyer_ip(): string
+{
+    $remote = $_SERVER['REMOTE_ADDR'] ?? '';
+    if (is_string($remote) && filter_var($remote, FILTER_VALIDATE_IP) !== false) {
+        return $remote;
+    }
+
+    return sample_required_env('LUNIXI_BUYER_IP');
 }
 
 function sample_billing_address(): Address
@@ -86,7 +102,24 @@ function sample_billing_address(): Address
     ]);
 }
 
-/** @return BasketItem[] */
+/** sample_basket_items() sells a PHYSICAL item, which needs a shipping address; the sample ships to the billing address. */
+function sample_shipping_address(): Address
+{
+    return new Address([
+        'address' => sample_env('LUNIXI_SHIPPING_ADDRESS', sample_env('LUNIXI_BILLING_ADDRESS', 'Example Street 1')),
+        'zipCode' => sample_env('LUNIXI_SHIPPING_ZIP', sample_env('LUNIXI_BILLING_ZIP', '34000')),
+        'contactName' => sample_env('LUNIXI_SHIPPING_CONTACT', sample_env('LUNIXI_BILLING_CONTACT', 'Ada Yilmaz')),
+        'city' => sample_env('LUNIXI_SHIPPING_CITY', sample_env('LUNIXI_BILLING_CITY', 'Istanbul')),
+        'country' => sample_env('LUNIXI_SHIPPING_COUNTRY', sample_env('LUNIXI_BILLING_COUNTRY', 'Turkey')),
+    ]);
+}
+
+/**
+ * One PHYSICAL item priced the whole order (`price` values add up to the amount);
+ * send sample_shipping_address() with it.
+ *
+ * @return BasketItem[]
+ */
 function sample_basket_items(string $amount): array
 {
     return [

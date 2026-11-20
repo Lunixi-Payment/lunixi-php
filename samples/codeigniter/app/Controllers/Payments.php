@@ -21,7 +21,7 @@ final class Payments extends BaseController
         try {
             $id = $this->id($rawId);
             $service = Services::lunixi();
-            $session = $service->start($id, session()->get('user_id'));
+            $session = $service->start($id, session()->get('user_id'), $this->request->getIPAddress());
             $order = $service->order($id, session()->get('user_id'));
             $this->response->setHeader('Cache-Control', 'no-store')->setHeader('Referrer-Policy', 'no-referrer');
             if ($order['mode'] === 'hosted') {

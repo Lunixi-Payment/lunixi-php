@@ -61,7 +61,10 @@ final class PaymentMethodsTest extends TestCase
     {
         return (new DirectMethodPaymentRequest('5000', 'try', 'ORD-MB-1'))
             ->withMethodFields(PaymentMethod::MOBILE_BILLING, null, ['gsmNumber' => '+905321234567'])
-            ->withCallbackUrl('https://merchant.example.com/payment/callback');
+            ->withCallbackUrl('https://merchant.example.com/payment/callback')
+            ->withBuyer(self::buyer())
+            ->withBillingAddress(self::address())
+            ->withBasketItems([self::basketItem('5000')]);
     }
 
     private function card(): CardDetails
@@ -134,7 +137,7 @@ final class PaymentMethodsTest extends TestCase
             'orderId' => 'ORD-MB-1',
             'callbackUrl' => 'https://merchant.example.com/payment/callback',
             'mobileBilling' => ['gsmNumber' => '+905321234567'],
-        ], $this->mobileBilling()->toArray());
+        ], array_diff_key($this->mobileBilling()->toArray(), ['buyer' => true, 'billingAddress' => true, 'shippingAddress' => true, 'basketItems' => true]));  // order details: OrderDetailsTest
     }
 
     public function testProviderCodeGoesIntoTheBlockAndAmountIsTheOnlyAmountField(): void
@@ -156,7 +159,9 @@ final class PaymentMethodsTest extends TestCase
         $http->pushJson(202, self::otpEnvelope('act_1'));
         $request = (new DirectMethodPaymentRequest('5000', 'TRY', 'ORD-MB-2'))
             ->withMethodFields(PaymentMethod::MOBILE_BILLING, null)
-            ->withBuyer(self::buyer());
+            ->withBuyer(self::buyer())
+            ->withBillingAddress(self::address())
+            ->withBasketItems([self::basketItem('5000')]);
 
         (new PaymentClient($api))->directMethodPayment($request, 'idem-empty');
 
@@ -789,7 +794,10 @@ final class PaymentMethodsTest extends TestCase
         [$api, $http] = $this->api();
         $http->pushJson(200, ['status' => 'success', 'data' => []]);
         $request = (new DirectMethodPaymentRequest('10050', 'TRY', 'ORD-S-1'))
-            ->withCard(new CardDetails(['cardUserKey' => 'cust_1', 'cardToken' => 'ct_1', 'cvcNumber' => '123']));
+            ->withCard(new CardDetails(['cardUserKey' => 'cust_1', 'cardToken' => 'ct_1', 'cvcNumber' => '123']))
+            ->withBuyer(self::buyer())
+            ->withBillingAddress(self::address())
+            ->withBasketItems([self::basketItem('10050')]);
 
         (new PaymentClient($api))->directMethodPayment($request, 'k-stored');
 

@@ -28,8 +28,11 @@ use Lunixi\Sdk\Exception\ConfigurationException;
  */
 final class SplitPaymentRequest
 {
-    /** Body fields of POST /payments/split (gateway SplitPaymentDto). */
-    public const FIELDS = ['totalAmount', 'currency', 'ownerRef', 'legs', 'orderId', 'ownerScope', 'callbackUrl'];
+    /** Body fields of POST /payments/split (gateway SplitPaymentDto). The order details are required (OrderDetails). */
+    public const FIELDS = [
+        'totalAmount', 'currency', 'ownerRef', 'legs', 'orderId', 'ownerScope', 'callbackUrl',
+        'buyer', 'billingAddress', 'shippingAddress', 'basketItems',
+    ];
 
     /**
      * Method blocks a non-card leg can carry (gateway SplitPaymentLegDto). Meal
@@ -98,6 +101,42 @@ final class SplitPaymentRequest
             throw new ConfigurationException(sprintf('callbackUrl must be an http(s) URL of at most %d characters.', self::CALLBACK_URL_MAX_LENGTH));
         }
         $this->data['callbackUrl'] = $url;
+
+        return $this;
+    }
+
+    /** The buyer (required). Every leg goes to the payment provider with it. */
+    public function withBuyer(Buyer $buyer): self
+    {
+        $this->data['buyer'] = $buyer->toArray();
+
+        return $this;
+    }
+
+    /** The billing address (required). */
+    public function withBillingAddress(Address $address): self
+    {
+        $this->data['billingAddress'] = $address->toArray();
+
+        return $this;
+    }
+
+    /** The shipping address; required when a basket item is `PHYSICAL`. */
+    public function withShippingAddress(Address $address): self
+    {
+        $this->data['shippingAddress'] = $address->toArray();
+
+        return $this;
+    }
+
+    /**
+     * Basket items (at least one); their `price` values add up to `totalAmount`.
+     *
+     * @param list<BasketItem> $items
+     */
+    public function withBasketItems(array $items): self
+    {
+        $this->data['basketItems'] = array_map(static fn (BasketItem $item): array => $item->toArray(), $items);
 
         return $this;
     }
@@ -222,6 +261,7 @@ final class SplitPaymentRequest
         if ($force3D && !isset($this->data['callbackUrl'])) {
             throw new ConfigurationException('callbackUrl is required when a card leg uses 3D Secure (withCallbackUrl()).');
         }
+        OrderDetails::assertComplete($this->data, 'A split payment');
 
         return $this->data + ['legs' => $this->legs];
     }

@@ -14,6 +14,7 @@ use Lunixi\Sdk\Exception\ConfigurationException;
 use Lunixi\Sdk\Http\HttpResponse;
 use Lunixi\Sdk\LunixiClient;
 use Lunixi\Sdk\Tests\Support\FakeHttpClient;
+use Lunixi\Sdk\Tests\Support\OrderDetailsFixture;
 use Lunixi\Sdk\Tests\Support\SignatureGuardStandIn;
 use Lunixi\Sdk\Wallet\WalletAccounts;
 use Lunixi\Sdk\Wallet\WalletAccountType;
@@ -200,7 +201,7 @@ final class WalletClientTest extends TestCase
             'WalletOperations::get' => static fn () => $w->operations->get(self::OPERATION),
             'WalletOperations::getReceipt' => static fn () => $w->operations->getReceipt(self::OPERATION),
 
-            'WalletTopups::startCard' => static fn () => $w->topups->startCard(['creditWalletAccountId' => self::ACCOUNT, 'amount' => '25000', 'currency' => 'TRY', 'returnUrl' => 'https://shop.example.com/topup/return'], 'topup-1'),
+            'WalletTopups::startCard' => static fn () => $w->topups->startCard(['creditWalletAccountId' => self::ACCOUNT, 'amount' => '25000', 'currency' => 'TRY', 'returnUrl' => 'https://shop.example.com/topup/return', 'buyer' => OrderDetailsFixture::BUYER, 'billingAddress' => OrderDetailsFixture::ADDRESS], 'topup-1'),
             'WalletTopups::get' => static fn () => $w->topups->get(self::OPERATION),
             'WalletTopups::refund' => static fn () => $w->topups->refund(self::OPERATION, ['reason' => 'customer request', 'requesterPrincipal' => 'ops-1', 'approverPrincipal' => 'ops-2']),
             'WalletTopups::agent' => static fn () => $w->topups->agent(['agentId' => 'agent-1', 'creditWalletAccountId' => self::ACCOUNT, 'amount' => '10000', 'currency' => 'TRY'], 'agent-topup-1'),
@@ -388,6 +389,7 @@ final class WalletClientTest extends TestCase
             'businessAccountId on a payment request' => [static fn (WalletClient $w) => $w->payments->request(['amount' => '100', 'currency' => 'TRY', 'paymentPurpose' => 'ORDER', 'businessAccountId' => self::BUSINESS], 'pay-1')],
             'missing required field' => [static fn (WalletClient $w) => $w->transfers->initiateW2W(self::w2wQuote(['amount' => null]), 'w2w-1')],
             'empty required field' => [static fn (WalletClient $w) => $w->transfers->quoteW2W(self::w2wQuote(['endUserId' => '']))],
+            'card top-up without the billing address' => [static fn (WalletClient $w) => $w->topups->startCard(['creditWalletAccountId' => self::ACCOUNT, 'amount' => '25000', 'currency' => 'TRY', 'buyer' => OrderDetailsFixture::BUYER], 'topup-1')],
             'missing buyerEndUserId' => [static fn (WalletClient $w) => $w->payments->approve(self::OPERATION, ['integrityHash' => 'ih', 'nonce' => 'n'], 'pay-1-approve')],
             'float amount' => [static fn (WalletClient $w) => $w->transfers->quoteW2W(self::w2wQuote(['amount' => 125.5]))],
             'numeric integer amount' => [static fn (WalletClient $w) => $w->transfers->quoteW2W(self::w2wQuote(['amount' => 100]))],

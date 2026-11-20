@@ -19,6 +19,7 @@ use Lunixi\Sdk\Payment\CreateIntentRequest;
 use Lunixi\Sdk\Payment\PaymentIntent;
 use Lunixi\Sdk\Payment\PromissoryNotePlan;
 use Lunixi\Sdk\Tests\Support\FakeHttpClient;
+use Lunixi\Sdk\Tests\Support\OrderDetailsFixture;
 use Lunixi\Sdk\Tests\Support\WeakMoneyCaller;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -41,7 +42,7 @@ final class MoneyStringContractTest extends TestCase
         [$client, $http] = $this->client();
         $large = '9007199254740993';
         $http->pushJson(201, ['data' => ['paymentId' => 'pi-large', 'token' => 'browser-token']]);
-        $client->payments()->createIntent(new CreateIntentRequest($large, 'TRY', 'large-order'), 'large-create');
+        $client->payments()->createIntent(OrderDetailsFixture::complete(new CreateIntentRequest($large, 'TRY', 'large-order'), $large), 'large-create');
         self::assertStringContainsString('"amount":"9007199254740993"', $http->lastCall()['body']);
         $http->pushJson(200, ['data' => ['id' => 'pi-large', 'amount' => $large]]);
         self::assertSame($large, $client->payments()->get('pi-large')->amount());

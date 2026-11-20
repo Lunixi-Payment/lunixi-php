@@ -20,6 +20,7 @@ $request = (new CreateIntentRequest('10050', 'TRY', 'ORD-PRE-' . date('YmdHis'))
     ->withPaymentChannel('WEB')
     ->withBuyer(sample_buyer())
     ->withBillingAddress(sample_billing_address())
+    ->withShippingAddress(sample_shipping_address())
     ->withBasketItems(sample_basket_items('10050'));
 
 $intent = $client->payments()->createIntent($request, sample_idempotency_key('preauth-intent'));

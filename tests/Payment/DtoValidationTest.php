@@ -16,6 +16,7 @@ use Lunixi\Sdk\Payment\InsuranceItemCategory;
 use Lunixi\Sdk\Payment\PaymentLinkItem;
 use Lunixi\Sdk\Payment\ProductCategory;
 use Lunixi\Sdk\Payment\StoreCardRequest;
+use Lunixi\Sdk\Tests\Support\OrderDetailsFixture;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -388,8 +389,14 @@ final class DtoValidationTest extends TestCase
             new CardDetails(['cardNumber' => '5400000000000004']),
             'cust_1',
             'https://shop/cards/callback'
-        ))->withCurrency('try')->toArray();
+        ))->withCurrency('try')
+            ->withBuyer(OrderDetailsFixture::buyer())
+            ->withBillingAddress(OrderDetailsFixture::address())
+            ->toArray();
         $this->assertSame('cust_1', $storeCard['cardUserKey']);
         $this->assertSame('TRY', $storeCard['currency']);
+        $this->assertSame(OrderDetailsFixture::BUYER, $storeCard['buyer']);
+        $this->assertSame(OrderDetailsFixture::ADDRESS, $storeCard['billingAddress']);
+        $this->assertArrayNotHasKey('basketItems', $storeCard, 'card storage has no basket');
     }
 }

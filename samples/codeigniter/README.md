@@ -39,7 +39,7 @@ php spark lunixi:setup
 php spark serve --host 127.0.0.1 --port 8080
 ```
 
-Open `http://localhost:8080/login`, sign in as `alice@example.test` or `bob@example.test` with the password you supplied. Their authoritative orders are created only by the explicit setup command; no HTTP route performs DDL. The file database defaults to `writable/lunixi.sqlite` outside `public/`; `LUNIXI_DATABASE` can select another private SQLite file.
+Open `http://localhost:8080/login`, sign in as `alice@example.test` or `bob@example.test` with the password you supplied. Their authoritative orders are created only by the explicit setup command; no HTTP route performs DDL. The file database defaults to `writable/lunixi.sqlite` outside `public/`; `LUNIXI_DATABASE` can select another private SQLite file. Each order row also carries the order details every payment requires (buyer, billing and shipping address, basket line type; `Schema::ORDER_DETAIL_COLUMNS`); the demo orders use a fictional customer, and the buyer IP comes from the checkout request. A database created before these columns existed must be recreated.
 
 Use a TLS tunnel or an HTTPS server for real TEST checkout, set `app.baseURL` and `LUNIXI_APP_URL` accordingly, and register **`https://your-host/webhooks/lunixi`** in Lunixi. A loopback HTTP session is useful for local UI work; the SDK still requires HTTPS callback URLs. For deployment point the web root to `public/`, enable HTTPS/secure session cookies (`app.forceGlobalSecureRequests=true`, `cookie.secure=true`), keep debug off and apply the production host/proxy policy.
 

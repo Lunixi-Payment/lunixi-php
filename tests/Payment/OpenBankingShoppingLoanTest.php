@@ -18,6 +18,7 @@ use Lunixi\Sdk\Payment\PaymentMethod;
 use Lunixi\Sdk\Payment\ProductCategory;
 use Lunixi\Sdk\Payment\SplitPaymentRequest;
 use Lunixi\Sdk\Tests\Support\FakeHttpClient;
+use Lunixi\Sdk\Tests\Support\OrderDetailsFixture;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -181,9 +182,9 @@ final class OpenBankingShoppingLoanTest extends TestCase
                 ],
             ],
         ]);
-        $request = (new DirectMethodPaymentRequest('5000', 'TRY', 'ORD-OB-1'))
+        $request = OrderDetailsFixture::complete((new DirectMethodPaymentRequest('5000', 'TRY', 'ORD-OB-1'))
             ->withMethodFields(PaymentMethod::OPEN_BANKING, 'COMPAY', ['bankCode' => '0062'])
-            ->withCallbackUrl('https://merchant.example.com/payment/callback');
+            ->withCallbackUrl('https://merchant.example.com/payment/callback'), '5000');
 
         $result = (new PaymentClient($api))->directMethodPayment($request, 'pay:ORD-OB-1');
 

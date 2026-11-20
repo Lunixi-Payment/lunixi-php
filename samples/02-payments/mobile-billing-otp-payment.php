@@ -40,7 +40,10 @@ foreach ($provider->inputFields() as $field) {
 
 $request = (new DirectMethodPaymentRequest($amount, 'TRY', 'ORD-MB-' . date('YmdHis')))
     ->withMethodFields(PaymentMethod::MOBILE_BILLING, $provider->providerCode(), $fields)
+    // Order details every payment requires; the PHYSICAL item also needs the shipping address.
     ->withBuyer(sample_buyer())
+    ->withBillingAddress(sample_billing_address())
+    ->withShippingAddress(sample_shipping_address())
     ->withBasketItems(sample_basket_items($amount))
     ->withCallbackUrl('https://merchant.example/payment/callback');
 

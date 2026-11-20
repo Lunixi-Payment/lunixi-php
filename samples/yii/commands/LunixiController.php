@@ -25,7 +25,8 @@ final class LunixiController extends \yii\console\Controller
             }
             $id = $n + 1;
             $store->execute('INSERT INTO users(id,email,password_hash,auth_key) VALUES (?,?,?,?)', [$id,$email,password_hash($password, PASSWORD_DEFAULT),bin2hex(random_bytes(32))]);
-            $store->execute('INSERT INTO orders(id,user_id,merchant_id,environment,amount,currency,mode,preauth) VALUES (?,?,?,?,?,?,?,?)', [$id,$id,$settings->merchantId,$settings->environment,1990,'TRY',$settings->mode,(int) $settings->preauth]);
+            // Demo order of a fictional customer (Schema::DEMO_ORDER_DETAILS).
+            Schema::insertOrder($store, ['id' => $id, 'user_id' => $id, 'merchant_id' => $settings->merchantId, 'environment' => $settings->environment, 'amount' => 1990, 'currency' => 'TRY', 'mode' => $settings->mode, 'preauth' => (int) $settings->preauth] + Schema::DEMO_ORDER_DETAILS);
         }
         $this->stdout("Lunixi example schema/accounts ready; no secret was printed.\n");
         return 0;

@@ -4,6 +4,7 @@ namespace Lunixi\Sdk\Commerce;
 
 use Lunixi\Sdk\LunixiClient;
 use Lunixi\Sdk\Payment\CreateIntentRequest;
+use Lunixi\Sdk\Payment\OrderDetails;
 use Lunixi\Sdk\Webhook\WebhookEvent;
 
 /** Durable, framework-independent checkout orchestration shared by native adapters. */
@@ -32,7 +33,14 @@ final class CheckoutService
         $metadata = ['lunixiCommerce' => ['fingerprint' => $order->fingerprint()]];
         if ($hosted) { $metadata['allowedOrigin'] = 'https://pay.lunixi.com'; }
         $request = (new CreateIntentRequest($order->amount(), $order->currency(), $order->orderId()))->withCallbackUrl($callbackUrl)->withMetadata($metadata)->withPreauth($preauth)->withLocale($locale);
-        $hash = hash('sha256', json_encode($request->toArray(), JSON_THROW_ON_ERROR));
+        // Order details every payment requires (createIntent() refuses an incomplete body before sending).
+        if ($order->buyer() !== null) { $request->withBuyer($order->buyer()); }
+        if ($order->billingAddress() !== null) { $request->withBillingAddress($order->billingAddress()); }
+        if ($order->shippingAddress() !== null) { $request->withShippingAddress($order->shippingAddress()); }
+        if ($order->basketItems() !== []) { $request->withBasketItems($order->basketItems()); }
+        // Checked BEFORE the reservation: an incomplete order never becomes a stored attempt.
+        OrderDetails::assertComplete($request->toArray(), 'A checkout', true, true);
+        $hash = hash('sha256', json_encode(self::hashedBody($request->toArray()), JSON_THROW_ON_ERROR));
         $record = $this->store->transaction($orderKey, function () use ($orderKey, $order, $hash): array {
             $r = $this->store->load($orderKey);
             if ($r !== null) {
@@ -330,4 +338,22 @@ final class CheckoutService
         if ($operation['action'] === 'capture') { return Money::compare($decision->capturedAmount, Money::add($operation['initialCaptured'], $operation['amount'])) >= 0; }
         return $decision->state === 'failed' && $decision->capturedAmount === '0';
     }
+
+    /**
+     * The reserved attempt's identity: the intent body without the order
+     * details (buyer, addresses, basket). The order itself is identified by the
+     * snapshot fingerprint (merchant, order, amount, currency); the buyer may
+     * correct a profile field or reconnect from another network (buyer.ip)
+     * between retries of the same order, which must not strand the attempt.
+     * The gateway's own idempotency check does not cover these fields either.
+     *
+     * @param array<string,mixed> $body
+     * @return array<string,mixed>
+     */
+    private static function hashedBody(array $body): array
+    {
+        unset($body['buyer'], $body['billingAddress'], $body['shippingAddress'], $body['basketItems']);
+        return $body;
+    }
+
 }

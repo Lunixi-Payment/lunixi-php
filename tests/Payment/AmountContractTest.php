@@ -22,6 +22,7 @@ use Lunixi\Sdk\Payment\DirectPaymentRequest;
 use Lunixi\Sdk\Payment\PaymentClient;
 use Lunixi\Sdk\Payment\PaymentMethod;
 use Lunixi\Sdk\Tests\Support\FakeHttpClient;
+use Lunixi\Sdk\Tests\Support\OrderDetailsFixture;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -67,7 +68,7 @@ final class AmountContractTest extends TestCase
 
     private static function direct(string $amount = '10050'): DirectPaymentRequest
     {
-        return new DirectPaymentRequest(
+        $request = new DirectPaymentRequest(
             $amount,
             'TRY',
             'ORD-AMT-1',
@@ -84,6 +85,9 @@ final class AmountContractTest extends TestCase
             // The item is valid for any amount: an invalid `amount` must be refused by the request itself.
             [self::basketItem($amount[0] === '-' ? '0' : $amount)]
         );
+
+        // The PHYSICAL item ships: the shipping address is part of the required order details.
+        return $request->withShippingAddress(OrderDetailsFixture::address());
     }
 
     private static function basketItem(string $price): BasketItem
@@ -229,7 +233,8 @@ final class AmountContractTest extends TestCase
         $payments = new PaymentClient($api);
         $marketplace = new MarketplaceClient($api);
         $sellers = [['subDealerId' => 'd_1', 'amountMinor' => '10050']];
-        $intent = (new CreateIntentRequest('10050', 'TRY', 'ORD-AMT-1'))->toArray() + ['sellers' => $sellers];
+        // Complete order details: the removed amount field is the only thing wrong.
+        $intent = OrderDetailsFixture::withOrder((new CreateIntentRequest('10050', 'TRY', 'ORD-AMT-1'))->toArray() + ['sellers' => $sellers]);
         $direct = self::direct()->toArray();
 
         $sends = [
@@ -258,7 +263,7 @@ final class AmountContractTest extends TestCase
             $http->pushJson(200, ['success' => true, 'data' => ['paymentId' => 'pi_' . $i]]);
         }
 
-        $payments->createMarketplaceIntent((new CreateIntentRequest('10050', 'TRY', 'ORD-AMT-1'))->toArray() + ['sellers' => $sellers], 'k-mp');
+        $payments->createMarketplaceIntent(OrderDetailsFixture::withOrder((new CreateIntentRequest('10050', 'TRY', 'ORD-AMT-1'))->toArray() + ['sellers' => $sellers]), 'k-mp');
         $marketplace->chargeMarketplaceCard2d(self::direct(), [new MarketplaceSeller('d_1', '10050')], MarketplaceClient::POLICY_ALL_OR_NOTHING, 'k-mp-2d');
 
         $paths = array_map(static fn (array $call): string => (string) parse_url($call['url'], PHP_URL_PATH), $http->calls);

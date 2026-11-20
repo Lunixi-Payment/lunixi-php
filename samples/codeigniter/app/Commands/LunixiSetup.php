@@ -29,7 +29,8 @@ final class LunixiSetup extends BaseCommand
             }
             $id = $n + 1;
             $db->query('INSERT INTO users(id,email,password_hash) VALUES (?,?,?)', [$id, $email, password_hash($password, PASSWORD_DEFAULT)]);
-            $db->query('INSERT INTO orders(id,user_id,merchant_id,environment,amount,currency,mode,preauth) VALUES (?,?,?,?,?,?,?,?)', [$id, $id, $settings->merchantId, $settings->environment, 1990, 'TRY', $settings->mode, (int) $settings->preauth]);
+            // Demo order of a fictional customer (Schema::DEMO_ORDER_DETAILS).
+            Schema::insertOrder($db, ['id' => $id, 'user_id' => $id, 'merchant_id' => $settings->merchantId, 'environment' => $settings->environment, 'amount' => 1990, 'currency' => 'TRY', 'mode' => $settings->mode, 'preauth' => (int) $settings->preauth] + Schema::DEMO_ORDER_DETAILS);
         }
         CLI::write('Lunixi example schema/demo accounts ready; no key/password was printed.');
     }

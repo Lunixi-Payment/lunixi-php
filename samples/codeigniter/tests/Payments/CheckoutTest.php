@@ -17,9 +17,10 @@ final class CheckoutTest extends CIUnitTestCase
         $this->nativeDb=db_connect();
         foreach (['payment_outbox','lunixi_events','lunixi_attempts','orders','users'] as $table) { $this->nativeDb->query('DROP TABLE IF EXISTS '.$table); }
         Schema::install($this->nativeDb);
+        $_SERVER['REMOTE_ADDR']='203.0.113.10'; // buyer.ip: a documentation address (RFC 5737)
         for ($n=1;$n<=2;++$n) {
             $this->nativeDb->query('INSERT INTO users(id,email,password_hash) VALUES (?,?,?)',[$n,'user'.$n.'@example.test',password_hash('test-only-long-password',PASSWORD_DEFAULT)]);
-            $this->nativeDb->query('INSERT INTO orders(id,user_id,merchant_id,environment,amount,currency,mode,preauth) VALUES (?,?,?,?,?,?,?,?)',[$n,$n,'merchant-a','TEST',1990,'TRY','hosted',0]);
+            Schema::insertOrder($this->nativeDb,['id'=>$n,'user_id'=>$n,'merchant_id'=>'merchant-a','environment'=>'TEST','amount'=>1990,'currency'=>'TRY','mode'=>'hosted','preauth'=>0]+Schema::DEMO_ORDER_DETAILS);
         }
         $this->http=new GatewayFixture();
         $settings=new Settings('merchant-a','TEST','fixture-key',Ed25519Signer::generateKeyPair()['privateKey'],'fixture-webhook-secret',str_repeat('K',32),'https://billing.example');
@@ -41,6 +42,22 @@ final class CheckoutTest extends CIUnitTestCase
         $record=$this->nativeDb->query('SELECT payload FROM lunixi_attempts')->getRowArray()['payload'];
         self::assertStringNotContainsString('fixture-browser-token',$record);
         self::assertSame('1990',$this->http->payments['pi-1']['data']['amount']);
+    }
+    public function testIntentCarriesTheOrderDetailsFromTheOrderRecord(): void
+    {
+        $this->checkout->start(1,1,'203.0.113.10');
+        $calls=array_values(array_filter($this->http->calls,fn($c)=>str_ends_with($c['url'],'/payments/intents')));
+        $intent=json_decode($calls[0]['body'],true,512,JSON_THROW_ON_ERROR);
+        self::assertSame(['name'=>'Ada','surname'=>'Yilmaz','identityNumber'=>'11111111111','email'=>'ada@example.com','gsmNumber'=>'+905350000000','city'=>'Istanbul','country'=>'Turkey','zipCode'=>'34000','ip'=>'203.0.113.10'],$intent['buyer']);
+        self::assertSame(['address'=>'Example Street 1','zipCode'=>'34000','contactName'=>'Ada Yilmaz','city'=>'Istanbul','country'=>'Turkey'],$intent['billingAddress']);
+        self::assertSame($intent['billingAddress'],$intent['shippingAddress']);
+        self::assertSame([['id'=>'1','price'=>'1990','name'=>'Order #1','category1'=>'General','itemType'=>'PHYSICAL']],$intent['basketItems']);
+    }
+    public function testIncompleteOrderDetailsNeverReachGatewayOrLedger(): void
+    {
+        $this->nativeDb->query('UPDATE orders SET buyer_identity_number=? WHERE id=1',['']);
+        try{$this->checkout->start(1,1);self::fail('Order without the buyer identity number accepted.');}catch(\Lunixi\Sdk\Exception\ConfigurationException $expected){self::assertStringContainsString('identityNumber',$expected->getMessage());}
+        self::assertSame([],$this->http->calls);self::assertSame(0,$this->nativeDb->table('lunixi_attempts')->countAllResults());
     }
     public function testUnauthenticatedAndWrongOwnerNeverRequestPayment(): void
     {

@@ -22,6 +22,7 @@ use Lunixi\Sdk\Payment\PaymentClient;
 use Lunixi\Sdk\Payment\PaymentStatus;
 use Lunixi\Sdk\Payment\StoreCardRequest;
 use Lunixi\Sdk\Tests\Support\FakeHttpClient;
+use Lunixi\Sdk\Tests\Support\OrderDetailsFixture;
 use PHPUnit\Framework\TestCase;
 
 final class PaymentClientTest extends TestCase
@@ -59,7 +60,9 @@ final class PaymentClientTest extends TestCase
             ]))
             ->withBasketItems([
                 new BasketItem(['id' => 'i1', 'price' => '1000', 'name' => 'Widget', 'category1' => 'Cat', 'itemType' => BasketItem::TYPE_PHYSICAL]),
-            ]);
+            ])
+            // A PHYSICAL item ships: the shipping address is part of the required order details.
+            ->withShippingAddress(OrderDetailsFixture::address());
     }
 
     public function testCreateIntentSendsStepUpBodyAndReturnsToken(): void
@@ -67,8 +70,8 @@ final class PaymentClientTest extends TestCase
         [$payments, $http] = $this->make();
         $http->pushJson(201, ['success' => true, 'code' => 'OK', 'paymentId' => 'pi_1', 'token' => 'tok_1', 'checkoutFormContent' => '']);
 
-        $request = (new CreateIntentRequest('1000', 'try', 'WC-1042'))
-            ->withCallbackUrl('https://shop/cb');
+        $request = OrderDetailsFixture::complete((new CreateIntentRequest('1000', 'try', 'WC-1042'))
+            ->withCallbackUrl('https://shop/cb'), '1000');
         $intent = $payments->createIntent($request);
 
         $this->assertSame('pi_1', $intent->paymentId());
@@ -92,7 +95,7 @@ final class PaymentClientTest extends TestCase
         $http->pushJson(200, ['success' => false, 'code' => 'CHECKOUT_INITIALIZE_FAILED', 'message' => 'nope']);
 
         try {
-            $payments->createIntent(new CreateIntentRequest('1000', 'TRY', 'o1'));
+            $payments->createIntent(OrderDetailsFixture::complete(new CreateIntentRequest('1000', 'TRY', 'o1'), '1000'));
             $this->fail('expected ApiException');
         } catch (ApiException $e) {
             $this->assertSame('CHECKOUT_INITIALIZE_FAILED', $e->getErrorCode());
@@ -221,6 +224,7 @@ final class PaymentClientTest extends TestCase
         [$payments] = $this->make();
 
         $this->expectException(ConfigurationException::class);
+        $this->expectExceptionMessage('Idempotency-Key');
         $payments->directMethodPayment($this->cardRequest());
     }
 
@@ -240,7 +244,7 @@ final class PaymentClientTest extends TestCase
 
         $http->pushJson(200, ['success' => true, 'data' => ['storedCardToken' => 'card_1']]);
         $payments->storeCard(
-            new StoreCardRequest(new CardDetails(['cardNumber' => '5400000000000004']), 'cust_1', 'https://shop/cards/cb'),
+            OrderDetailsFixture::complete(new StoreCardRequest(new CardDetails(['cardNumber' => '5400000000000004']), 'cust_1', 'https://shop/cards/cb')),
             'idem-store-card'
         );
         $call = $http->lastCall();

@@ -8,7 +8,8 @@ use Lunixi\Sdk\Payment\StoreCardRequest;
 require_once __DIR__ . '/../_common/bootstrap.php';
 
 // Verify-and-store opens a mandatory 3DS authorization. The card is vaulted only
-// after successful cardholder authentication.
+// after successful cardholder authentication. The buyer and billing address are
+// required (no basket: nothing is charged).
 $request = (new StoreCardRequest(
     new CardDetails([
         'cardHolderName' => 'Ada Yilmaz',
@@ -20,7 +21,10 @@ $request = (new StoreCardRequest(
     ]),
     sample_env('LUNIXI_CARD_USER_KEY', 'cust_demo_001'),
     sample_env('LUNIXI_CALLBACK_URL', 'https://merchant.example.com/cards/lunixi/callback')
-))->withCurrency('TRY');
+))
+    ->withCurrency('TRY')
+    ->withBuyer(sample_buyer())
+    ->withBillingAddress(sample_billing_address());
 
 $response = sample_client()->payments()->storeCard($request, sample_idempotency_key('store-card'));
 

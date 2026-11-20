@@ -32,8 +32,14 @@ if ($provider === null) {
 }
 
 $orderId = 'ORD-SPLIT-' . date('YmdHis');
-$request = (new SplitPaymentRequest('10000', 'TRY', sample_required_env('LUNIXI_CARD_USER_KEY')))
+$amount = '10000';
+$request = (new SplitPaymentRequest($amount, 'TRY', sample_required_env('LUNIXI_CARD_USER_KEY')))
     ->withOrderId($orderId)
+    // Order details: every leg goes to its provider with the same buyer and basket.
+    ->withBuyer(sample_buyer())
+    ->withBillingAddress(sample_billing_address())
+    ->withShippingAddress(sample_shipping_address())
+    ->withBasketItems(sample_basket_items($amount))
     ->addCardLeg(sample_required_env('LUNIXI_STORED_CARD_TOKEN'), '6000')
     ->addMethodLeg(PaymentMethod::MOBILE_BILLING, $provider->providerCode(), '4000', [
         'gsmNumber' => sample_env('LUNIXI_BUYER_GSM', '+905350000000'),

@@ -9,6 +9,7 @@ use Lunixi\Sdk\Http\Envelope;
 use Lunixi\Sdk\ApiClient;
 use Lunixi\Sdk\Exception\ApiException;
 use Lunixi\Sdk\Exception\ConfigurationException;
+use Lunixi\Sdk\Payment\OrderDetails;
 use Lunixi\Sdk\Payment\CheckoutIntent;
 use Lunixi\Sdk\Payment\CreateIntentRequest;
 use Lunixi\Sdk\Payment\DirectPaymentRequest;
@@ -61,6 +62,7 @@ final class MarketplaceClient
             'sellers' => array_map(static fn (MarketplaceSeller $s): array => $s->toArray(), array_values($sellers)),
             'multiSellerPolicy' => $multiSellerPolicy,
         ]);
+        OrderDetails::assertComplete($body, 'A marketplace payment intent', true, true);
 
         $response = $this->api->request('POST', self::PAY_BASE . '/intents', $body, [
             'stepUp' => true,
@@ -92,7 +94,8 @@ final class MarketplaceClient
      * DirectPaymentRequest.
      *
      * @param array<string,mixed> $payload amount (basket total, minor units),
-     *   currency, orderId, card{…}, buyer{…}, preauth?,
+     *   currency, orderId, card{…}, buyer{…}, billingAddress{…}, basketItems[…]
+     *   (shippingAddress{…} for a physical item; OrderDetails), preauth?,
      *   sellers[]{ subDealerId, amountMinor (digit string), scenario? },
      *   multiSellerPolicy?… The sellers' `amountMinor` values must add up to
      *   `amount`; the gateway refuses any other total with 400. `price` /
@@ -104,6 +107,7 @@ final class MarketplaceClient
     {
         PaymentClient::assertNoRemovedAmountFields($payload);
         PaymentClient::assertPreauthField($payload);
+        OrderDetails::assertComplete($payload, 'A marketplace card charge');
 
         return $this->api->request('POST', self::PAY_BASE . '/' . ($threeDS ? '3d' : '2d'), $payload, [
             'stepUp' => true,

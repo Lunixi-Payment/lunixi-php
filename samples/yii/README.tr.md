@@ -43,7 +43,7 @@ php yii lunixi/setup
 php yii serve --port=8081
 ```
 
-`http://localhost:8081/login` üzerinde `alice@example.test` / `bob@example.test` ve sizin parolanızla oturum açın. Tablo/kullanıcı/siparişler yalnız açık konsol kurulumuyla oluşturulur; HTTP yolunda DDL yoktur. Varsayılan veritabanı `web/` dışında `runtime/lunixi.sqlite` dosyasıdır; `LUNIXI_DATABASE` başka özel SQLite dosyası seçebilir. Anahtarlar bağımsız ve kalıcı olmalı; sır, SQLite, oturum ve günlük dosyaları Git'e girmez.
+`http://localhost:8081/login` üzerinde `alice@example.test` / `bob@example.test` ve sizin parolanızla oturum açın. Tablo/kullanıcı/siparişler yalnız açık konsol kurulumuyla oluşturulur; HTTP yolunda DDL yoktur. Varsayılan veritabanı `web/` dışında `runtime/lunixi.sqlite` dosyasıdır; `LUNIXI_DATABASE` başka özel SQLite dosyası seçebilir. Her sipariş satırı her ödemenin istediği sipariş bilgisini de taşır (alıcı, fatura ve teslimat adresi, sepet kalemi tipi; `Schema::ORDER_DETAIL_COLUMNS`); demo siparişlerde kurgusal bir müşteri vardır, alıcı IP'si ödeme isteğinden alınır. Bu sütunlardan önce oluşturulmuş bir veritabanını yeniden oluşturun. Anahtarlar bağımsız ve kalıcı olmalı; sır, SQLite, oturum ve günlük dosyaları Git'e girmez.
 
 Örnek dosya yalnız loopback geliştirmesi için `APP_ENV=dev`, `YII_LOCAL_HTTP=1` seçer. Gerçek TEST ödemesinde HTTPS/TLS tüneli ve Lunixi'de kayıtlı **`https://adresiniz/webhooks/lunixi`** gerekir. `LUNIXI_APP_URL` değerini değiştirin. Yayında document root `web/`, `APP_ENV=prod`, `YII_LOCAL_HTTP=0`, HTTPS/güvenli çerez ve host/proxy politikanız kullanılmalı; debug kapalı kalmalıdır. Şifreleme anahtarını çerez/API/webhook/veritabanı sırrından türetmeyin.
 

@@ -25,6 +25,7 @@ use Lunixi\Sdk\Payment\PromissoryNotePlan;
 use Lunixi\Sdk\Payment\PromissoryNoteStatus;
 use Lunixi\Sdk\Reference\ReferenceClient;
 use Lunixi\Sdk\Tests\Support\FakeHttpClient;
+use Lunixi\Sdk\Tests\Support\OrderDetailsFixture;
 use Lunixi\Sdk\Webhook\WebhookEvent;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -79,9 +80,9 @@ final class PromissoryNoteTest extends TestCase
 
     private function promissoryRequest(): DirectMethodPaymentRequest
     {
-        return (new DirectMethodPaymentRequest('300000', 'TRY', 'ORD-PN-1'))
+        return OrderDetailsFixture::complete((new DirectMethodPaymentRequest('300000', 'TRY', 'ORD-PN-1'))
             ->withMethodFields(PaymentMethod::PROMISSORY_NOTE, null, self::debtor())
-            ->withPromissoryNoteSchedule(self::SCHEDULE);
+            ->withPromissoryNoteSchedule(self::SCHEDULE), '300000');
     }
 
     /** @return array<string,mixed> */
@@ -146,7 +147,7 @@ final class PromissoryNoteTest extends TestCase
             'currency' => 'TRY',
             'orderId' => 'ORD-PN-1',
             'promissoryNote' => self::debtor() + ['schedule' => self::SCHEDULE],
-        ], $body);
+        ], array_diff_key($body, ['buyer' => true, 'billingAddress' => true, 'shippingAddress' => true, 'basketItems' => true]));  // order details: OrderDetailsTest
         foreach (array_keys($body) as $key) {
             $this->assertContains($key, PaymentMethod::DIRECT_METHOD_PAYMENT_FIELDS);
         }

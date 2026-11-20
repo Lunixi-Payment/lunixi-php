@@ -36,9 +36,16 @@ php samples/02-payments/create-checkout-intent.php
 
 - Prefer hosted checkout (`createIntent`) for SAQ-A. Direct card samples put PAN
   on your server and require PCI DSS SAQ-D controls.
-- Direct card samples intentionally send full payment context: card, buyer,
-  billing address and basket items. Lunixi does not model a card-only charge as
-  a complete auditable payment.
+- Every payment sends the order details: the buyer, the billing address and the
+  basket items (their `price` values add up to the amount), plus the shipping
+  address when an item is `PHYSICAL`. The SDK refuses an incomplete order with
+  a `ConfigurationException` before anything is sent (`OrderDetails`); card
+  storage sends the buyer and billing address without a basket, and a wallet
+  card top-up sends `buyer` and `billingAddress`. `buyer.ip` is the buyer's
+  browser IP: the samples use the web request's `REMOTE_ADDR`, or
+  `LUNIXI_BUYER_IP` from the command line. The sample values (`sample_buyer()`,
+  `sample_billing_address()`, `sample_shipping_address()`) are fictional; take
+  the real ones from your order.
 - Always pass stable `Idempotency-Key` values for money-moving calls, and for
   payment-link create/send, every wallet route that takes one and the insurance
   order writes (create, confirm payment, issue policy, cancel, refund premium).

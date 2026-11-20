@@ -39,7 +39,7 @@ php spark lunixi:setup
 php spark serve --host 127.0.0.1 --port 8080
 ```
 
-`http://localhost:8080/login` adresinde `alice@example.test` veya `bob@example.test` ve sizin belirlediğiniz parolayla oturum açın. Kullanıcı/sipariş tabloları yalnız açık kurulum komutuyla oluşturulur; HTTP yolu DDL çalıştırmaz. Varsayılan veritabanı `public/` dışında `writable/lunixi.sqlite` dosyasıdır. `LUNIXI_DATABASE` başka özel SQLite dosyası seçebilir.
+`http://localhost:8080/login` adresinde `alice@example.test` veya `bob@example.test` ve sizin belirlediğiniz parolayla oturum açın. Kullanıcı/sipariş tabloları yalnız açık kurulum komutuyla oluşturulur; HTTP yolu DDL çalıştırmaz. Varsayılan veritabanı `public/` dışında `writable/lunixi.sqlite` dosyasıdır. `LUNIXI_DATABASE` başka özel SQLite dosyası seçebilir. Her sipariş satırı her ödemenin istediği sipariş bilgisini de taşır (alıcı, fatura ve teslimat adresi, sepet kalemi tipi; `Schema::ORDER_DETAIL_COLUMNS`); demo siparişlerde kurgusal bir müşteri vardır, alıcı IP'si ödeme isteğinden alınır. Bu sütunlardan önce oluşturulmuş bir veritabanını yeniden oluşturun.
 
 Gerçek TEST ödemesi için TLS tüneli/HTTPS sunucusu kullanın; `app.baseURL` ve `LUNIXI_APP_URL` değerlerini güncelleyin, Lunixi'ye **`https://adresiniz/webhooks/lunixi`** kaydedin. SDK dönüş adresinde HTTPS zorunludur. Yayında web kökünü `public/` seçin; HTTPS ve güvenli çerezi açın (`app.forceGlobalSecureRequests=true`, `cookie.secure=true`), debug kapalı tutun ve host/proxy politikanızı uygulayın.
 

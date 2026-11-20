@@ -77,13 +77,18 @@ final class PaymentClient
     }
 
     /**
-     * Creates a checkout intent. Returns the browser token + paymentId.
+     * Creates a checkout intent. Returns the browser token + paymentId. The
+     * buyer, billing address and basket are required (shipping address for a
+     * physical item; OrderDetails).
      *
+     * @throws ConfigurationException when the order details are incomplete (nothing is sent).
      * @throws ApiException on an init failure (non-2xx, or success=false/no token).
      */
     public function createIntent(CreateIntentRequest $request, ?string $idempotencyKey = null): CheckoutIntent
     {
-        $response = $this->api->request('POST', self::BASE . '/intents', $request->toArray(), [
+        $body = $request->toArray();
+        OrderDetails::assertComplete($body, 'A payment intent', true, true);
+        $response = $this->api->request('POST', self::BASE . '/intents', $body, [
             'stepUp' => true,
             'idempotencyKey' => $idempotencyKey, // optional for create; gateway derives one if absent
         ]);
@@ -114,6 +119,7 @@ final class PaymentClient
     public function createMarketplaceIntent(array $request, ?string $idempotencyKey = null): array
     {
         self::assertNoRemovedAmountFields($request);
+        OrderDetails::assertComplete($request, 'A marketplace payment intent', true, true);
 
         return $this->api->request('POST', self::BASE . '/marketplace/intents', $request, [
             'stepUp' => true,
@@ -189,6 +195,7 @@ final class PaymentClient
     public function directMethodPayment(DirectMethodPaymentRequest $request, ?string $idempotencyKey = null): MethodPaymentResult
     {
         $body = $request->toArray();
+        OrderDetails::assertComplete($body, 'A direct method payment');
         $key = self::requireIdempotencyKey('direct method payment', $idempotencyKey);
 
         return new MethodPaymentResult($this->api->request('POST', self::BASE . '/direct/payment', $body, [
@@ -439,7 +446,9 @@ final class PaymentClient
     /** @return array<string,mixed> */
     public function storeCard(StoreCardRequest $request, ?string $idempotencyKey = null): array
     {
-        return $this->api->request('POST', self::BASE . '/cards', $request->toArray(), [
+        $body = $request->toArray();
+        OrderDetails::assertComplete($body, 'Storing a card', false);
+        return $this->api->request('POST', self::BASE . '/cards', $body, [
             'stepUp' => true,
             'idempotencyKey' => self::requireIdempotencyKey('store card', $idempotencyKey),
         ]);

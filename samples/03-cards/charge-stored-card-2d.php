@@ -21,6 +21,7 @@ $request = (new DirectMethodPaymentRequest($amount, 'TRY', 'ORD-STORED-CARD-' . 
     ]))
     ->withBuyer(sample_buyer())
     ->withBillingAddress(sample_billing_address())
+    ->withShippingAddress(sample_shipping_address())
     ->withBasketItems(sample_basket_items($amount))
     ->withPaymentChannel('WEB')
     ->withPaymentGroup('PRODUCT')

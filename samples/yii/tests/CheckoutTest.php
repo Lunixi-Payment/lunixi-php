@@ -16,13 +16,14 @@ final class CheckoutTest extends TestCase
     {
         putenv('YII_COOKIE_KEY='.str_repeat('C',32));
         $_SERVER['SCRIPT_FILENAME']=dirname(__DIR__).'/web/index.php';$_SERVER['SCRIPT_NAME']='/index.php';$_SERVER['HTTP_HOST']='billing.example';$_SERVER['HTTPS']='on';$_SERVER['REQUEST_URI']='/';$_SERVER['REQUEST_METHOD']='GET';
+        $_SERVER['REMOTE_ADDR']='203.0.113.10'; // buyer.ip: a documentation address (RFC 5737)
         $config=require dirname(__DIR__).'/config/web.php';
         $config['components']['db']['dsn']='sqlite::memory:';
         $config['components']['session']['useCookies']=false;
         $this->app=new Application($config);$this->app->errorHandler->unregister();
         $this->app->session->open();$this->app->session->removeAll();
         $this->db=new Store($this->app->db);Schema::install($this->db);
-        for($n=1;$n<=2;++$n){$this->db->execute('INSERT INTO users(id,email,password_hash,auth_key) VALUES (?,?,?,?)',[$n,'user'.$n.'@example.test',password_hash('test-only-long-password',PASSWORD_DEFAULT),bin2hex(random_bytes(32))]);$this->db->execute('INSERT INTO orders(id,user_id,merchant_id,environment,amount,currency,mode,preauth) VALUES (?,?,?,?,?,?,?,?)',[$n,$n,'merchant-a','TEST',1990,'TRY','hosted',0]);}
+        for($n=1;$n<=2;++$n){$this->db->execute('INSERT INTO users(id,email,password_hash,auth_key) VALUES (?,?,?,?)',[$n,'user'.$n.'@example.test',password_hash('test-only-long-password',PASSWORD_DEFAULT),bin2hex(random_bytes(32))]);Schema::insertOrder($this->db,['id'=>$n,'user_id'=>$n,'merchant_id'=>'merchant-a','environment'=>'TEST','amount'=>1990,'currency'=>'TRY','mode'=>'hosted','preauth'=>0]+Schema::DEMO_ORDER_DETAILS);}
         $this->http=new GatewayFixture();
         $settings=new Settings('merchant-a','TEST','fixture-key',Ed25519Signer::generateKeyPair()['privateKey'],'fixture-webhook-secret',str_repeat('K',32),'https://billing.example');
         $this->checkout=new Checkout($this->db,$settings,$this->http);$this->app->set('checkout',$this->checkout);
@@ -53,6 +54,22 @@ final class CheckoutTest extends TestCase
         $response=$this->request('POST','payments/1',$this->csrf(),1);
         self::assertSame(303,$response->statusCode);self::assertSame('https://pay.lunixi.com/payment/backend-page-pi-1',$response->headers->get('Location'));
         self::assertStringNotContainsString('fixture-browser-token',$this->db->one('SELECT payload FROM lunixi_attempts')['payload']);self::assertSame('1990',$this->http->payments['pi-1']['data']['amount']);
+    }
+    public function testIntentCarriesTheOrderDetailsFromTheOrderRecord():void
+    {
+        $this->checkout->start(1,1,'203.0.113.10');
+        $calls=array_values(array_filter($this->http->calls,fn($c)=>str_ends_with($c['url'],'/payments/intents')));
+        $intent=json_decode($calls[0]['body'],true,512,JSON_THROW_ON_ERROR);
+        self::assertSame(['name'=>'Ada','surname'=>'Yilmaz','identityNumber'=>'11111111111','email'=>'ada@example.com','gsmNumber'=>'+905350000000','city'=>'Istanbul','country'=>'Turkey','zipCode'=>'34000','ip'=>'203.0.113.10'],$intent['buyer']);
+        self::assertSame(['address'=>'Example Street 1','zipCode'=>'34000','contactName'=>'Ada Yilmaz','city'=>'Istanbul','country'=>'Turkey'],$intent['billingAddress']);
+        self::assertSame($intent['billingAddress'],$intent['shippingAddress']);
+        self::assertSame([['id'=>'1','price'=>'1990','name'=>'Order #1','category1'=>'General','itemType'=>'PHYSICAL']],$intent['basketItems']);
+    }
+    public function testIncompleteOrderDetailsNeverReachGatewayOrLedger():void
+    {
+        $this->db->execute('UPDATE orders SET buyer_identity_number=? WHERE id=1',['']);
+        try{$this->checkout->start(1,1);self::fail('Order without the buyer identity number accepted.');}catch(\Lunixi\Sdk\Exception\ConfigurationException $expected){self::assertStringContainsString('identityNumber',$expected->getMessage());}
+        self::assertSame([],$this->http->calls);self::assertSame(0,(int)$this->db->one('SELECT COUNT(*) AS n FROM lunixi_attempts')['n']);
     }
     public function testNativeOwnerAndVerbGatesBeforePaymentNetwork():void
     {
