@@ -2,6 +2,10 @@
 
 All notable changes to `lunixi/php-sdk`.
 
+## 2.0.1 — 2026-11-20
+
+- `Commerce\OrderSnapshot::withBasketItems()` builds its list while checking each item (static analysis clean). The CodeIgniter and Yii samples require `lunixi/php-sdk:^2.0`, the version with the order details.
+
 ## 2.0.0 — 2026-11-20
 
 - **Breaking — order details required.** Every payment endpoint requires the buyer, the billing address and at least one basket item; a `PHYSICAL` item also requires the shipping address (payment providers do not start a payment without them). `createIntent()`, `createMarketplaceIntent()`, `directMethodPayment()`, `SplitPaymentRequest::toArray()`, marketplace `createCheckoutIntent()` / card charges and `storeCard()` (buyer and billing address only) throw `ConfigurationException` naming the missing paths before sending. New `Payment\OrderDetails` (`ORDER_DETAILS_REQUIRED_FIELDS`, `BUYER_REQUIRED_FIELDS`, `ADDRESS_REQUIRED_FIELDS`, `BASKET_ITEM_REQUIRED_FIELDS`, `missing()`, `assertComplete()`), `OrderFieldErrorCode` (`payment.order.field_required`, `payment.order.field_invalid`), `OrderFieldReason`. Checkout intents (`createIntent()`, `createMarketplaceIntent()`, `CheckoutService::start()`) may leave out `buyer.ip`: the Lunixi form takes it from the buyer's browser (`OrderDetails::CHECKOUT_INTENT_BUYER_OPTIONAL_FIELDS`). `Buyer` no longer requires `ip` itself; the endpoint check does.

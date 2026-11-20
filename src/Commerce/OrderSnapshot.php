@@ -80,17 +80,19 @@ final class OrderSnapshot
     /**
      * At least one item; the `price` values add up to the order amount.
      *
-     * @param list<BasketItem> $items
+     * @param array<mixed> $items BasketItem instances
      */
     public function withBasketItems(array $items): self
     {
+        $list = [];
         foreach ($items as $item) {
             if (!$item instanceof BasketItem) {
                 throw new \InvalidArgumentException('Basket items must be BasketItem instances.');
             }
+            $list[] = $item;
         }
         $copy = clone $this;
-        $copy->basketItems = array_values($items);
+        $copy->basketItems = $list;
         return $copy;
     }
 
